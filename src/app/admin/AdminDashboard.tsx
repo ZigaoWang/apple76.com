@@ -14,7 +14,6 @@ interface Item {
   uploaded_at: string;
   source: string;
   author: string;
-  format: string;
   dimensions: string;
   file_size: number;
   notes: string;
@@ -126,45 +125,106 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
       <div className="bg-gray-800 p-6 rounded-lg flex flex-col gap-4 w-full max-w-xl mb-12">
         <h2 className="text-xl font-bold mb-2">Upload New Item</h2>
         <form onSubmit={handleUpload} className="flex flex-col gap-4">
-          <input type="file" name="file" className="bg-gray-900 p-2 rounded text-white" required />
-          <input type="text" name="title" placeholder="Title" className="bg-gray-900 p-2 rounded text-white" required />
-          
-          {/* Year field with unknown checkbox */}
-          <div className="flex gap-4 items-center">
-            <input 
-              type="number" 
-              name="year" 
-              placeholder="Year" 
-              className="bg-gray-900 p-2 rounded text-white flex-1" 
-              disabled={isYearUnknown}
-              required={!isYearUnknown}
-            />
-            <label className="flex items-center gap-2">
-              <input 
-                type="checkbox" 
-                checked={isYearUnknown}
-                onChange={(e) => setIsYearUnknown(e.target.checked)}
-                className="rounded"
-              />
-              <span>Year Unknown</span>
+          <div>
+            <label className="block mb-1">
+              File <span className="text-red-500">*</span>
             </label>
+            <input type="file" name="file" className="bg-gray-900 p-2 rounded text-white w-full" required />
           </div>
 
-          <select name="collection" className="bg-gray-900 p-2 rounded text-white" required>
-            <option value="manuals">Manuals</option>
-            <option value="ads">Ads</option>
-            <option value="wwdc">WWDC</option>
-            <option value="wallpapers">Wallpapers</option>
-          </select>
+          <div>
+            <label className="block mb-1">
+              Title <span className="text-red-500">*</span>
+            </label>
+            <input type="text" name="title" placeholder="Enter title" className="bg-gray-900 p-2 rounded text-white w-full" required />
+          </div>
+          
+          {/* Year field with unknown checkbox */}
+          <div>
+            <label className="block mb-1">
+              Year <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-4 items-center">
+              <input 
+                type="number" 
+                name="year" 
+                placeholder="Enter year" 
+                className="bg-gray-900 p-2 rounded text-white flex-1" 
+                disabled={isYearUnknown}
+                required={!isYearUnknown}
+              />
+              <label className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  checked={isYearUnknown}
+                  onChange={(e) => setIsYearUnknown(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Year Unknown</span>
+              </label>
+            </div>
+          </div>
 
-          <input type="url" name="original_link" placeholder="Original Link (optional)" className="bg-gray-900 p-2 rounded text-white" />
-          <input type="text" name="source" placeholder="Source (e.g., Apple.com, Magazine)" className="bg-gray-900 p-2 rounded text-white" />
-          <input type="text" name="author" placeholder="Author/Creator" className="bg-gray-900 p-2 rounded text-white" />
-          <input type="text" name="format" placeholder="Format (e.g., PDF, JPEG)" className="bg-gray-900 p-2 rounded text-white" />
-          <input type="text" name="dimensions" placeholder="Dimensions (e.g., 1920x1080)" className="bg-gray-900 p-2 rounded text-white" />
-          <input type="text" name="tags" placeholder="Tags (comma separated)" className="bg-gray-900 p-2 rounded text-white" />
-          <textarea name="description" placeholder="Description" className="bg-gray-900 p-2 rounded text-white" />
-          <textarea name="notes" placeholder="Additional Notes" className="bg-gray-900 p-2 rounded text-white" />
+          <div>
+            <label className="block mb-1">
+              Collection <span className="text-red-500">*</span>
+            </label>
+            <select name="collection" className="bg-gray-900 p-2 rounded text-white w-full" required>
+              <option value="manuals">Manuals</option>
+              <option value="ads">Ads</option>
+              <option value="wwdc">WWDC</option>
+              <option value="wallpapers">Wallpapers</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Original Link (Optional)
+            </label>
+            <input type="url" name="original_link" placeholder="Enter original source URL" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Source (Optional)
+            </label>
+            <input type="text" name="source" placeholder="e.g., Apple.com, Magazine name" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Author/Creator (Optional)
+            </label>
+            <input type="text" name="author" placeholder="Enter author or creator name" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Dimensions (Optional)
+            </label>
+            <input type="text" name="dimensions" placeholder="e.g., 1920x1080" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Tags (Optional)
+            </label>
+            <input type="text" name="tags" placeholder="Enter tags separated by commas" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Description (Optional)
+            </label>
+            <textarea name="description" placeholder="Enter description" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
+
+          <div>
+            <label className="block mb-1">
+              Additional Notes (Optional)
+            </label>
+            <textarea name="notes" placeholder="Enter any additional notes" className="bg-gray-900 p-2 rounded text-white w-full" />
+          </div>
           
           {/* Progress Bar */}
           {uploadStatus === 'uploading' && (
@@ -215,7 +275,6 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
               <th className="p-2">Year</th>
               <th className="p-2">Collection</th>
               <th className="p-2">Source</th>
-              <th className="p-2">Format</th>
               <th className="p-2">Actions</th>
             </tr>
           </thead>
@@ -226,7 +285,6 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
                 <td className="p-2">{item.is_year_unknown ? 'Unknown' : item.year}</td>
                 <td className="p-2">{item.collection}</td>
                 <td className="p-2">{item.source}</td>
-                <td className="p-2">{item.format}</td>
                 <td className="p-2 flex gap-2">
                   <button 
                     onClick={() => handleDelete(item.id)}
