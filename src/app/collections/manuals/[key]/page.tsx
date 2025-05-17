@@ -2,18 +2,19 @@ import { notFound } from 'next/navigation';
 import client from '@/lib/oss';
 
 interface ManualPageProps {
-  params: { key: string[] };
+  params: { key: string | string[] } | Promise<{ key: string | string[] }>;
 }
 
 export default async function ManualPreviewPage({ params }: ManualPageProps) {
-  // The key param is an array due to catch-all route
-  const key = Array.isArray(params.key) ? params.key.join('/') : params.key;
+  const resolvedParams = await params;
+  if (!resolvedParams || !resolvedParams.key) return notFound();
+  const key = Array.isArray(resolvedParams.key) ? resolvedParams.key.join('/') : resolvedParams.key;
 
   // Generate a signed URL for the file (valid for 10 minutes)
   let url: string | null = null;
   try {
     url = client.signatureUrl(key, { expires: 600 });
-  } catch (e) {
+  } catch {
     return notFound();
   }
 

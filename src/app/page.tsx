@@ -23,7 +23,7 @@ export default async function Home() {
           {items.map((item) => {
             const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
             const previewUrl = `/collections/${collection}/${encodeURIComponent(item.oss_key)}`;
-            return (
+  return (
               <div key={item.id} className="bg-gray-800 rounded-lg p-4 flex flex-col items-center">
                 <Link href={previewUrl}>
                   {/* Use img for all types, fallback to file name if no image */}
@@ -59,7 +59,7 @@ export default async function Home() {
         {renderSection('Ads', ads, 'ads')}
         {renderSection('WWDC', wwdc, 'wwdc')}
         {renderSection('Wallpapers', wallpapers, 'wallpapers')}
-      </div>
-    </main>
+        </div>
+      </main>
   );
 }
