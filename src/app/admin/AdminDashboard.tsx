@@ -169,10 +169,41 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
               Collection <span className="text-red-500">*</span>
             </label>
             <select name="collection" className="bg-gray-900 p-2 rounded text-white w-full" required>
-              <option value="manuals">Manuals</option>
-              <option value="ads">Ads</option>
-              <option value="wwdc">WWDC</option>
-              <option value="wallpapers">Wallpapers</option>
+              <optgroup label="Manuals">
+                <option value="manuals/hardware">Hardware Manuals</option>
+                <option value="manuals/software">Software Manuals</option>
+                <option value="manuals/service">Service Manuals</option>
+                <option value="manuals/developer">Developer Documentation</option>
+              </optgroup>
+              <optgroup label="Marketing">
+                <option value="ads/print">Print Advertisements</option>
+                <option value="ads/tv">TV Commercials</option>
+                <option value="ads/billboard">Billboards</option>
+                <option value="ads/poster">Posters</option>
+                <option value="ads/catalog">Product Catalogs</option>
+                <option value="ads/packaging">Product Packaging</option>
+              </optgroup>
+              <optgroup label="WWDC">
+                <option value="wwdc/keynotes">Keynotes</option>
+                <option value="wwdc/sessions">Technical Sessions</option>
+                <option value="wwdc/labs">Labs</option>
+                <option value="wwdc/scholarship">Scholarship Program</option>
+                <option value="wwdc/design">Design Awards</option>
+              </optgroup>
+              <optgroup label="Media">
+                <option value="wallpapers/official">Official Wallpapers</option>
+                <option value="wallpapers/event">Event Wallpapers</option>
+                <option value="wallpapers/product">Product Wallpapers</option>
+                <option value="photos/events">Event Photos</option>
+                <option value="photos/products">Product Photos</option>
+                <option value="photos/retail">Retail Store Photos</option>
+              </optgroup>
+              <optgroup label="Historical">
+                <option value="historical/announcements">Product Announcements</option>
+                <option value="historical/press">Press Releases</option>
+                <option value="historical/events">Historical Events</option>
+                <option value="historical/retail">Retail History</option>
+              </optgroup>
             </select>
           </div>
 
