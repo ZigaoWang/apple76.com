@@ -20,7 +20,14 @@ export async function initDb() {
       description TEXT,
       tags TEXT,
       oss_key TEXT UNIQUE,
-      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      source TEXT,
+      author TEXT,
+      format TEXT,
+      dimensions TEXT,
+      file_size INTEGER,
+      notes TEXT,
+      is_year_unknown BOOLEAN DEFAULT 0
     );
   `);
   return db;

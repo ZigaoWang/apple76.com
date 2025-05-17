@@ -5,13 +5,20 @@ import React, { useState } from 'react';
 interface Item {
   id: number;
   title: string;
-  year: number;
+  year: number | null;
   collection: string;
   original_link: string;
   description: string;
   tags: string;
   oss_key: string;
   uploaded_at: string;
+  source: string;
+  author: string;
+  format: string;
+  dimensions: string;
+  file_size: number;
+  notes: string;
+  is_year_unknown: boolean;
 }
 
 interface AdminDashboardProps {
@@ -22,6 +29,7 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isYearUnknown, setIsYearUnknown] = useState(false);
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -31,6 +39,7 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
 
     const form = e.currentTarget;
     const formData = new FormData(form);
+    formData.append('is_year_unknown', isYearUnknown.toString());
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -50,6 +59,7 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
               setUploadProgress(100);
               setUploadStatus('success');
               form.reset();
+              setIsYearUnknown(false);
               // Reload the page after 2 seconds
               setTimeout(() => {
                 window.location.reload();
@@ -118,16 +128,43 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
         <form onSubmit={handleUpload} className="flex flex-col gap-4">
           <input type="file" name="file" className="bg-gray-900 p-2 rounded text-white" required />
           <input type="text" name="title" placeholder="Title" className="bg-gray-900 p-2 rounded text-white" required />
-          <input type="number" name="year" placeholder="Year" className="bg-gray-900 p-2 rounded text-white" required />
+          
+          {/* Year field with unknown checkbox */}
+          <div className="flex gap-4 items-center">
+            <input 
+              type="number" 
+              name="year" 
+              placeholder="Year" 
+              className="bg-gray-900 p-2 rounded text-white flex-1" 
+              disabled={isYearUnknown}
+              required={!isYearUnknown}
+            />
+            <label className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                checked={isYearUnknown}
+                onChange={(e) => setIsYearUnknown(e.target.checked)}
+                className="rounded"
+              />
+              <span>Year Unknown</span>
+            </label>
+          </div>
+
           <select name="collection" className="bg-gray-900 p-2 rounded text-white" required>
             <option value="manuals">Manuals</option>
             <option value="ads">Ads</option>
             <option value="wwdc">WWDC</option>
             <option value="wallpapers">Wallpapers</option>
           </select>
+
           <input type="url" name="original_link" placeholder="Original Link (optional)" className="bg-gray-900 p-2 rounded text-white" />
+          <input type="text" name="source" placeholder="Source (e.g., Apple.com, Magazine)" className="bg-gray-900 p-2 rounded text-white" />
+          <input type="text" name="author" placeholder="Author/Creator" className="bg-gray-900 p-2 rounded text-white" />
+          <input type="text" name="format" placeholder="Format (e.g., PDF, JPEG)" className="bg-gray-900 p-2 rounded text-white" />
+          <input type="text" name="dimensions" placeholder="Dimensions (e.g., 1920x1080)" className="bg-gray-900 p-2 rounded text-white" />
           <input type="text" name="tags" placeholder="Tags (comma separated)" className="bg-gray-900 p-2 rounded text-white" />
           <textarea name="description" placeholder="Description" className="bg-gray-900 p-2 rounded text-white" />
+          <textarea name="notes" placeholder="Additional Notes" className="bg-gray-900 p-2 rounded text-white" />
           
           {/* Progress Bar */}
           {uploadStatus === 'uploading' && (
@@ -177,7 +214,8 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
               <th className="p-2">Title</th>
               <th className="p-2">Year</th>
               <th className="p-2">Collection</th>
-              <th className="p-2">Tags</th>
+              <th className="p-2">Source</th>
+              <th className="p-2">Format</th>
               <th className="p-2">Actions</th>
             </tr>
           </thead>
@@ -185,9 +223,10 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
             {items.map((item) => (
               <tr key={item.id} className="border-b border-gray-700">
                 <td className="p-2">{item.title}</td>
-                <td className="p-2">{item.year}</td>
+                <td className="p-2">{item.is_year_unknown ? 'Unknown' : item.year}</td>
                 <td className="p-2">{item.collection}</td>
-                <td className="p-2">{item.tags}</td>
+                <td className="p-2">{item.source}</td>
+                <td className="p-2">{item.format}</td>
                 <td className="p-2 flex gap-2">
                   <button 
                     onClick={() => handleDelete(item.id)}

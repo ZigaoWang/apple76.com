@@ -24,12 +24,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.redirect(new URL('/admin?error=nofile', req.url));
     }
 
+    // Get all form fields
     const title = form.get('title')?.toString() || '';
-    const year = parseInt(form.get('year')?.toString() || '0', 10);
+    const yearStr = form.get('year')?.toString();
+    const isYearUnknown = form.get('is_year_unknown') === 'true';
+    const year = isYearUnknown ? null : parseInt(yearStr || '0', 10);
     const collection = form.get('collection')?.toString() || '';
     const original_link = form.get('original_link')?.toString() || '';
     const description = form.get('description')?.toString() || '';
     const tags = form.get('tags')?.toString() || '';
+    const source = form.get('source')?.toString() || '';
+    const author = form.get('author')?.toString() || '';
+    const format = form.get('format')?.toString() || '';
+    const dimensions = form.get('dimensions')?.toString() || '';
+    const notes = form.get('notes')?.toString() || '';
 
     // Upload to OSS
     const oss_key = `${collection}/${file.name}`;
@@ -46,8 +54,12 @@ export async function POST(req: NextRequest) {
       // Insert metadata into DB
       const db = await openDb();
       await db.run(
-        'INSERT OR IGNORE INTO items (title, year, collection, original_link, description, tags, oss_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        title, year, collection, original_link, description, tags, oss_key
+        `INSERT OR IGNORE INTO items (
+          title, year, collection, original_link, description, tags, oss_key,
+          source, author, format, dimensions, file_size, notes, is_year_unknown
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        title, year, collection, original_link, description, tags, oss_key,
+        source, author, format, dimensions, file.size, notes, isYearUnknown ? 1 : 0
       );
 
       if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
