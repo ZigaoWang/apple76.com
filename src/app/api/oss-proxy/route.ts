@@ -1,26 +1,36 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import client from '@/lib/oss';
 
-export async function GET(req: NextRequest) {
-  const key = req.nextUrl.searchParams.get('key');
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const key = searchParams.get('key');
+
   if (!key) {
-    return new Response('Missing key', { status: 400 });
+    return new NextResponse('Missing key parameter', { status: 400 });
   }
+
   try {
-    const url = client.signatureUrl(key, { expires: 600 });
-    const ossRes = await fetch(url);
-    const headers = new Headers(ossRes.headers);
-    // Remove CORS headers from OSS, set our own
-    headers.set('Access-Control-Allow-Origin', '*');
-    // Remove some headers that Next.js disallows
-    headers.delete('content-encoding');
-    headers.delete('content-length');
-    headers.delete('transfer-encoding');
-    return new Response(ossRes.body, {
-      status: ossRes.status,
+    const result = await client.get(key);
+    const buffer = await result.content;
+    const contentType = (result.res.headers as Record<string, string>)['content-type'] || 'application/octet-stream';
+
+    // Set appropriate headers
+    const headers = new Headers();
+    headers.set('Content-Type', contentType);
+    headers.set('Content-Length', (result.res.headers as Record<string, string>)['content-length'] || buffer.length.toString());
+    
+    // For PDFs, we want to display them in the browser
+    if (contentType === 'application/pdf') {
+      headers.set('Content-Disposition', 'inline');
+    } else {
+      headers.set('Content-Disposition', 'attachment');
+    }
+
+    return new NextResponse(buffer, {
       headers,
     });
-  } catch (e) {
-    return new Response('Error fetching from OSS', { status: 500 });
+  } catch (error) {
+    console.error('Error fetching from OSS:', error);
+    return new NextResponse('Error fetching file', { status: 500 });
   }
 } 

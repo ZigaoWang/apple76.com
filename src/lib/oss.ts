@@ -10,7 +10,7 @@ const client = new OSS({
   secure: true, // Use HTTPS
 });
 
-export default client;
+export { client as default };
 
 export async function listFiles(prefix: string) {
   // List all files under a prefix (folder)

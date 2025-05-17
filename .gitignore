@@ -43,3 +43,24 @@ next-env.d.ts
 # SQLite database
 apple76.sqlite
 apple76.db
+
+# recommended ignores
+node_modules/
+.next/
+out/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+Thumbs.db
+
+pdfjs.zip
+pdfjs-dist/
+
+*.log

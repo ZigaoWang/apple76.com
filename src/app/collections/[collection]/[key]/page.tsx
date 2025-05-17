@@ -10,7 +10,7 @@ interface ItemPageProps {
 }
 
 export default async function ItemPage({ params }: ItemPageProps) {
-  const { collection, key } = params;
+  const { key } = await params;
   const oss_key = decodeURIComponent(key);
 
   // Get item details from database
