@@ -42,3 +42,4 @@ next-env.d.ts
 
 # SQLite database
 apple76.sqlite
+apple76.db

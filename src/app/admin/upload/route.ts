@@ -37,17 +37,31 @@ export async function POST(req: NextRequest) {
     const author = form.get('author')?.toString() || '';
     const notes = form.get('notes')?.toString() || '';
 
-    // Upload to OSS
-    const oss_key = `${collection}/${file.name}`;
+    // Generate a unique filename to prevent collisions
+    const timestamp = Date.now();
+    const originalName = file.name;
+    const oss_key = `${collection}/${timestamp}-${originalName}`;
+
+    // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
-    
+    const buffer = Buffer.from(arrayBuffer);
+
     try {
-      await client.put(oss_key, Buffer.from(arrayBuffer), {
+      // Upload to OSS with proper error handling
+      await client.put(oss_key, buffer, {
         headers: {
           'Content-Type': file.type,
-          'Content-Length': file.size.toString(),
+          'Content-Length': buffer.length.toString(),
         },
       });
+
+      // Verify the upload was successful
+      try {
+        await client.head(oss_key);
+      } catch (error) {
+        console.error('OSS verification error:', error);
+        throw new Error('Failed to verify file upload');
+      }
 
       // Insert metadata into DB
       const db = await openDb();
@@ -57,7 +71,7 @@ export async function POST(req: NextRequest) {
           source, author, file_size, notes, is_year_unknown
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         title, year, collection, original_link, description, tags, oss_key,
-        source, author, file.size, notes, isYearUnknown ? 1 : 0
+        source, author, buffer.length, notes, isYearUnknown ? 1 : 0
       );
 
       if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
@@ -66,16 +80,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.redirect(new URL('/admin', req.url));
     } catch (error) {
       console.error('OSS upload error:', error);
-      if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
-        return NextResponse.json({ success: false, error: 'upload_failed' }, { status: 500 });
+      
+      // Try to clean up if the upload failed
+      try {
+        await client.delete(oss_key);
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
       }
-      return NextResponse.redirect(new URL('/admin?error=upload_failed', req.url));
+
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'upload_failed',
+          message: errorMessage 
+        }, { status: 500 });
+      }
+      return NextResponse.redirect(new URL(`/admin?error=upload_failed&message=${encodeURIComponent(errorMessage)}`, req.url));
     }
   } catch (error) {
     console.error('Upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
     if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
-      return NextResponse.json({ success: false, error: 'upload_failed' }, { status: 500 });
+      return NextResponse.json({ 
+        success: false, 
+        error: 'upload_failed',
+        message: errorMessage 
+      }, { status: 500 });
     }
-    return NextResponse.redirect(new URL('/admin?error=upload_failed', req.url));
+    return NextResponse.redirect(new URL(`/admin?error=upload_failed&message=${encodeURIComponent(errorMessage)}`, req.url));
   }
 } 

@@ -1,42 +1,45 @@
 import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import { open, Database } from 'sqlite';
+import path from 'path';
+
+let db: Database | null = null;
 
 export async function openDb() {
-  return open({
-    filename: './apple76.sqlite',
-    driver: sqlite3.Database,
-  });
-}
+  if (db) return db;
 
-export async function initDb() {
-  const db = await openDb();
+  const dbPath = path.join(process.cwd(), 'apple76.db');
+  
+  db = await open({
+    filename: dbPath,
+    driver: sqlite3.Database
+  });
+
+  // Create items table if it doesn't exist
   await db.exec(`
     CREATE TABLE IF NOT EXISTS items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT,
+      title TEXT NOT NULL,
       year INTEGER,
-      collection TEXT,
+      collection TEXT NOT NULL,
       original_link TEXT,
       description TEXT,
       tags TEXT,
-      oss_key TEXT UNIQUE,
+      oss_key TEXT NOT NULL,
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       source TEXT,
       author TEXT,
-      format TEXT,
-      dimensions TEXT,
       file_size INTEGER,
       notes TEXT,
-      is_year_unknown BOOLEAN DEFAULT 0
-    );
+      is_year_unknown INTEGER DEFAULT 0
+    )
   `);
+
   return db;
 }
 
-// Allow running this file directly to initialize the DB
-if (import.meta.url === `file://${process.argv[1]}`) {
-  initDb().then(() => {
-    console.log('Database initialized.');
-    process.exit(0);
-  });
+export async function closeDb() {
+  if (db) {
+    await db.close();
+    db = null;
+  }
 } 
