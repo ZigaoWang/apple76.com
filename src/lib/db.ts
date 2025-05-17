@@ -27,7 +27,7 @@ export async function initDb() {
 }
 
 // Allow running this file directly to initialize the DB
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   initDb().then(() => {
     console.log('Database initialized.');
     process.exit(0);
