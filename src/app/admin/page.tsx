@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { openDb } from '@/lib/db';
 import React from 'react';
-import UploadForm from './UploadForm';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
 
@@ -10,18 +10,7 @@ async function checkAuth() {
   return cookieStore.get('admin_auth')?.value === ADMIN_PASSWORD;
 }
 
-function getMessage(searchParams: Record<string, string> | undefined) {
-  if (!searchParams) return null;
-  if (searchParams.success === 'upload') return { type: 'success', text: 'Upload complete!' };
-  if (searchParams.success === 'delete') return { type: 'success', text: 'Delete complete!' };
-  if (searchParams.error === 'upload') return { type: 'error', text: 'Upload failed.' };
-  if (searchParams.error === 'delete') return { type: 'error', text: 'Delete failed.' };
-  if (searchParams.error === 'auth') return { type: 'error', text: 'Not authorized.' };
-  if (searchParams.error === 'nofile') return { type: 'error', text: 'No file selected.' };
-  return null;
-}
-
-export default async function AdminPage({ searchParams }: { searchParams?: Record<string, string> }) {
+export default async function AdminPage() {
   const isAuthed = await checkAuth();
   if (!isAuthed) {
     return (
@@ -39,16 +28,25 @@ export default async function AdminPage({ searchParams }: { searchParams?: Recor
   const db = await openDb();
   const items = await db.all('SELECT * FROM items ORDER BY uploaded_at DESC LIMIT 100');
 
-  // Get message from search params
-  const message = getMessage(searchParams);
-
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center p-8">
       <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
-      {message && (
-        <div className={`mb-6 p-4 rounded text-center font-bold ${message.type === 'success' ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'}`}>{message.text}</div>
-      )}
-      <UploadForm />
+      <form className="bg-gray-800 p-6 rounded-lg flex flex-col gap-4 w-full max-w-xl mb-12" method="POST" action="/admin/upload" encType="multipart/form-data">
+        <h2 className="text-xl font-bold mb-2">Upload New Item</h2>
+        <input type="file" name="file" className="bg-gray-900 p-2 rounded text-white" required />
+        <input type="text" name="title" placeholder="Title" className="bg-gray-900 p-2 rounded text-white" required />
+        <input type="number" name="year" placeholder="Year" className="bg-gray-900 p-2 rounded text-white" required />
+        <select name="collection" className="bg-gray-900 p-2 rounded text-white" required>
+          <option value="manuals">Manuals</option>
+          <option value="ads">Ads</option>
+          <option value="wwdc">WWDC</option>
+          <option value="wallpapers">Wallpapers</option>
+        </select>
+        <input type="url" name="original_link" placeholder="Original Link (optional)" className="bg-gray-900 p-2 rounded text-white" />
+        <input type="text" name="tags" placeholder="Tags (comma separated)" className="bg-gray-900 p-2 rounded text-white" />
+        <textarea name="description" placeholder="Description" className="bg-gray-900 p-2 rounded text-white" />
+        <button type="submit" className="bg-blue-600 rounded p-2 font-bold">Upload</button>
+      </form>
       <div className="w-full max-w-4xl">
         <h2 className="text-2xl font-bold mb-4">Existing Items</h2>
         <table className="w-full text-left bg-gray-900 rounded-lg overflow-hidden">
