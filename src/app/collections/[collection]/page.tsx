@@ -102,7 +102,7 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {items.map((item) => {
             const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
-            const previewUrl = `/collections/${item.collection}/${encodeURIComponent(item.oss_key)}`;
+            const previewUrl = `/item/${item.id}`;
             return (
               <div key={item.id} className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
                 <Link href={previewUrl} className="block relative">

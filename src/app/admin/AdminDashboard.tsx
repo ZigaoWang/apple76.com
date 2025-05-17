@@ -352,7 +352,7 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
                           Delete
                         </button>
                         <a 
-                          href={`/collections/${item.collection}/${encodeURIComponent(item.oss_key)}`} 
+                          href={`/item/${item.id}`} 
                           className="text-blue-600 hover:text-blue-900 transition-colors duration-200" 
                           target="_blank"
                         >
