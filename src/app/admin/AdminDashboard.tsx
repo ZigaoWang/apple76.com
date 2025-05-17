@@ -14,7 +14,6 @@ interface Item {
   uploaded_at: string;
   source: string;
   author: string;
-  dimensions: string;
   file_size: number;
   notes: string;
   is_year_unknown: boolean;
@@ -196,13 +195,6 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
               Author/Creator (Optional)
             </label>
             <input type="text" name="author" placeholder="Enter author or creator name" className="bg-gray-900 p-2 rounded text-white w-full" />
-          </div>
-
-          <div>
-            <label className="block mb-1">
-              Dimensions (Optional)
-            </label>
-            <input type="text" name="dimensions" placeholder="e.g., 1920x1080" className="bg-gray-900 p-2 rounded text-white w-full" />
           </div>
 
           <div>

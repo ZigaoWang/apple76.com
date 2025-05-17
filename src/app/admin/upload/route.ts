@@ -35,7 +35,6 @@ export async function POST(req: NextRequest) {
     const tags = form.get('tags')?.toString() || '';
     const source = form.get('source')?.toString() || '';
     const author = form.get('author')?.toString() || '';
-    const dimensions = form.get('dimensions')?.toString() || '';
     const notes = form.get('notes')?.toString() || '';
 
     // Upload to OSS
@@ -55,10 +54,10 @@ export async function POST(req: NextRequest) {
       await db.run(
         `INSERT OR IGNORE INTO items (
           title, year, collection, original_link, description, tags, oss_key,
-          source, author, dimensions, file_size, notes, is_year_unknown
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          source, author, file_size, notes, is_year_unknown
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         title, year, collection, original_link, description, tags, oss_key,
-        source, author, dimensions, file.size, notes, isYearUnknown ? 1 : 0
+        source, author, file.size, notes, isYearUnknown ? 1 : 0
       );
 
       if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
