@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { openDb } from '@/lib/db';
+import { formatFileSize } from '@/lib/utils';
 
 interface ItemPageProps {
   params: { 
@@ -148,7 +149,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
                   <div>
                     <span className="text-sm font-medium text-gray-500">File Size</span>
-                    <p className="text-gray-900">{item.file_size}</p>
+                    <p className="text-gray-900">{formatFileSize(item.file_size)}</p>
                   </div>
 
                   <div>
