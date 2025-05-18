@@ -25,6 +25,7 @@ export async function openDb() {
       description TEXT,
       tags TEXT,
       oss_key TEXT NOT NULL,
+      thumbnail_key TEXT,
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       source TEXT,
       author TEXT,

@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import client from '@/lib/oss';
 import { openDb } from '@/lib/db';
+import sharp from 'sharp';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
+
+async function generateThumbnail(buffer: Buffer, fileType: string): Promise<Buffer> {
+  if (fileType === 'application/pdf') {
+    // For PDFs, we'll use a default PDF thumbnail image
+    // You might want to use pdf-preview or similar to generate actual PDF thumbnails
+    return Buffer.from(''); // Placeholder for now
+  }
+
+  // For images, create a thumbnail
+  return sharp(buffer)
+    .resize(400, 300, {
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,13 +59,17 @@ export async function POST(req: NextRequest) {
     const timestamp = Date.now();
     const originalName = file.name;
     const oss_key = `${collection}/${timestamp}-${originalName}`;
+    const thumbnail_key = `${collection}/thumbnails/${timestamp}-${originalName}`;
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     try {
-      // Upload to OSS with proper error handling
+      // Generate thumbnail
+      const thumbnailBuffer = await generateThumbnail(buffer, file.type);
+
+      // Upload original file to OSS
       await client.put(oss_key, buffer, {
         headers: {
           'Content-Type': file.type,
@@ -55,9 +77,22 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Verify the upload was successful
+      // Upload thumbnail to OSS
+      if (thumbnailBuffer.length > 0) {
+        await client.put(thumbnail_key, thumbnailBuffer, {
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': thumbnailBuffer.length.toString(),
+          },
+        });
+      }
+
+      // Verify the uploads were successful
       try {
         await client.head(oss_key);
+        if (thumbnailBuffer.length > 0) {
+          await client.head(thumbnail_key);
+        }
       } catch (error) {
         console.error('OSS verification error:', error);
         throw new Error('Failed to verify file upload');
@@ -68,10 +103,10 @@ export async function POST(req: NextRequest) {
       await db.run(
         `INSERT OR IGNORE INTO items (
           title, year, collection, original_link, description, tags, oss_key,
-          source, author, file_size, notes, is_year_unknown
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          source, author, file_size, notes, is_year_unknown, thumbnail_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         title, year, collection, original_link, description, tags, oss_key,
-        source, author, buffer.length, notes, isYearUnknown ? 1 : 0
+        source, author, buffer.length, notes, isYearUnknown ? 1 : 0, thumbnail_key
       );
 
       if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
@@ -84,6 +119,7 @@ export async function POST(req: NextRequest) {
       // Try to clean up if the upload failed
       try {
         await client.delete(oss_key);
+        await client.delete(thumbnail_key);
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);
       }
@@ -100,14 +136,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error('Upload error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
     if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'upload_failed',
-        message: errorMessage 
-      }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'server_error' }, { status: 500 });
     }
-    return NextResponse.redirect(new URL(`/admin?error=upload_failed&message=${encodeURIComponent(errorMessage)}`, req.url));
+    return NextResponse.redirect(new URL('/admin?error=server_error', req.url));
   }
 } 

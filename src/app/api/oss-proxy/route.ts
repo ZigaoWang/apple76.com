@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
     headers.set('Content-Type', contentType);
     headers.set('Content-Length', (result.res.headers as Record<string, string>)['content-length'] || buffer.length.toString());
     
-    // For PDFs, we want to display them in the browser
-    if (contentType === 'application/pdf') {
+    // For PDFs and images, we want to display them in the browser
+    if (contentType === 'application/pdf' || contentType.startsWith('image/')) {
       headers.set('Content-Disposition', 'inline');
     } else {
       headers.set('Content-Disposition', 'attachment');
