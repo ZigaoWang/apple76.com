@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import client from '@/lib/oss';
 import { openDb } from '@/lib/db';
 import sharp from 'sharp';
+import { PDFDocument } from 'pdf-lib';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
 
@@ -79,9 +80,42 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
         return generateImagePlaceholder();
       }
     }
+  } else if (contentType === 'application/pdf') {
+    try {
+      // Load the PDF document
+      const pdfDoc = await PDFDocument.load(buffer);
+      const pages = pdfDoc.getPages();
+      
+      if (pages.length === 0) {
+        throw new Error('PDF has no pages');
+      }
+
+      // Create a new PDF with just the first page
+      const thumbnailPdf = await PDFDocument.create();
+      const [copiedPage] = await thumbnailPdf.copyPages(pdfDoc, [0]);
+      thumbnailPdf.addPage(copiedPage);
+
+      // Convert the PDF to PNG using sharp
+      const pdfBuffer = await thumbnailPdf.save();
+      const image = sharp(pdfBuffer, { density: 300 })
+        .resize(800, 1200, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .jpeg({ 
+          quality: 90,
+          mozjpeg: true
+        });
+
+      const thumbnail = await image.toBuffer();
+      return { buffer: thumbnail, contentType: 'image/jpeg' };
+    } catch (error) {
+      console.log('PDF thumbnail generation failed:', error);
+      return generatePdfPlaceholder();
+    }
   }
 
-  // For PDFs, return a placeholder image
+  // For other file types, return a placeholder image
   return generatePdfPlaceholder();
 }
 

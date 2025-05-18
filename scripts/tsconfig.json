@@ -1,17 +1,20 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
+    "target": "ESNext",
+    "module": "ESNext",
     "lib": ["ES2020"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": "..",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
-    }
+      "@/*": ["../src/*"]
+    },
+    "moduleResolution": "node"
   },
-  "include": ["./**/*.ts"],
+  "include": [
+    "./**/*.ts"
+  ],
   "exclude": ["node_modules"]
 } 
