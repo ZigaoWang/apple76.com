@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import VideoThumbnail from './VideoThumbnail';
 
 interface Item {
   id: number;
@@ -18,49 +19,82 @@ interface ItemCardProps {
 
 export default function ItemCard({ item }: ItemCardProps) {
   const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
-  const thumbnailUrl = item.thumbnail_key ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` : url;
+  
+  // Check if the file is a video
+  const isVideo = item.oss_key.toLowerCase().endsWith('.mp4') || 
+                  item.oss_key.toLowerCase().endsWith('.mov') ||
+                  item.oss_key.toLowerCase().endsWith('.webm');
+  
+  // For videos, we want to use the actual thumbnail but we need to ensure it's not using 
+  // the video itself as the thumbnail source, as that won't work visually
+  const videoThumbnailUrl = item.thumbnail_key 
+    ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
+    : null;
+  
+  // For non-videos, we can fall back to the file itself if no thumbnail exists
+  const regularThumbnailUrl = item.thumbnail_key 
+    ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
+    : url;
+  
+  // For debugging
+  if (isVideo) {
+    console.log(`Video: ${item.title} (ID: ${item.id})`);
+    console.log(`- OSS Key: ${item.oss_key}`);
+    console.log(`- Thumbnail Key: ${item.thumbnail_key}`);
+    console.log(`- Using thumbnail URL: ${videoThumbnailUrl}`);
+  }
+  
   const previewUrl = `/item/${item.id}`;
 
   return (
     <div className="break-inside-avoid group">
       <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col">
-        <Link href={previewUrl} className="block relative w-full aspect-[4/3]">
-          {/* Image Container with overflow hidden and transition */}
-          <div className="relative w-full h-full overflow-hidden rounded-t-xl bg-gray-100 transition-transform duration-300 group-hover:scale-105">
-            {/* Tiny placeholder image for blur-up effect */}
-            <div
-              className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
-              style={{
-                backgroundImage: `url(${thumbnailUrl}?x-oss-process=image/resize,w_20)`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
-            />
-            {/* Main image */}
-            <img
-              src={thumbnailUrl}
-              alt={item.title}
-              className="relative w-full h-full object-cover"
-              loading="lazy"
-              decoding="async"
-              onLoad={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.opacity = '1';
-              }}
-              style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
-            />
-          </div>
-          
-          {/* Conditionally render year/unknown label */}
-          {!item.is_year_unknown && ( // Only show if year is known
-            <div className="absolute top-3 right-3">
-              <span className="px-2 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 shadow-sm">
-                {item.year} {/* Display the year if known */}
-              </span>
+        {isVideo ? (
+          <VideoThumbnail
+            thumbnailUrl={videoThumbnailUrl}
+            title={item.title}
+            linkUrl={previewUrl}
+            year={item.year}
+            isYearUnknown={item.is_year_unknown}
+          />
+        ) : (
+          <Link href={previewUrl} className="block relative w-full aspect-[4/3]">
+            {/* Image Container with overflow hidden and transition */}
+            <div className="relative w-full h-full overflow-hidden rounded-t-xl bg-gray-100 transition-transform duration-300 group-hover:scale-105">
+              {/* Tiny placeholder image for blur-up effect */}
+              <div
+                className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
+                style={{
+                  backgroundImage: `url(${regularThumbnailUrl}?x-oss-process=image/resize,w_20)`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              />
+              {/* Main image */}
+              <img
+                src={regularThumbnailUrl}
+                alt={item.title}
+                className="relative w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                onLoad={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.opacity = '1';
+                }}
+                style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
+              />
             </div>
-          )}
-
-        </Link>
+            
+            {/* Conditionally render year/unknown label */}
+            {!item.is_year_unknown && ( // Only show if year is known
+              <div className="absolute top-3 right-3">
+                <span className="px-2 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 shadow-sm">
+                  {item.year} {/* Display the year if known */}
+                </span>
+              </div>
+            )}
+          </Link>
+        )}
         <div className="p-4 flex-grow flex flex-col">
           <div className="mb-2">
             <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-50 text-blue-600 rounded-full">

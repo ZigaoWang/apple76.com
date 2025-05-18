@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "compile-thumbnails-script": "tsc --project scripts",
-    "generate-thumbnails": "node ./scripts/generate-thumbnails.js"
+    "generate-thumbnails": "node ./scripts/generate-thumbnails.js",
+    "generate-video-thumbnails": "node ./scripts/generate-video-thumbnails.cjs",
+    "fix-video-thumbnails": "node ./scripts/fix-video-thumbnails.cjs"
   },
   "dependencies": {
     "ali-oss": "^6.23.0",

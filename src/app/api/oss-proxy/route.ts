@@ -10,18 +10,62 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await client.get(key);
+    // Get range header if it exists
+    const rangeHeader = request.headers.get('range');
+    let options = {};
+    
+    // Handle range requests (mainly for video streaming)
+    if (rangeHeader) {
+      const matches = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (matches) {
+        options = {
+          headers: {
+            Range: rangeHeader
+          },
+          process: null // Disable image processing for range requests
+        };
+      }
+    }
+
+    const result = await client.get(key, options);
     const buffer = await result.content;
     const contentType = (result.res.headers as Record<string, string>)['content-type'] || 'application/octet-stream';
-
+    const contentLength = (result.res.headers as Record<string, string>)['content-length'] || buffer.length.toString();
+    
     // Set appropriate headers
     const headers = new Headers();
     headers.set('Content-Type', contentType);
-    headers.set('Content-Length', (result.res.headers as Record<string, string>)['content-length'] || buffer.length.toString());
+    headers.set('Content-Length', contentLength);
     
-    // For PDFs and images, we want to display them in the browser
-    if (contentType === 'application/pdf' || contentType.startsWith('image/')) {
+    // For PDFs, images, and videos, we want to display them in the browser
+    if (
+      contentType === 'application/pdf' || 
+      contentType.startsWith('image/') || 
+      contentType.startsWith('video/')
+    ) {
       headers.set('Content-Disposition', 'inline');
+      
+      // For images, add caching headers to improve performance
+      if (contentType.startsWith('image/')) {
+        headers.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+        console.log(`Serving image: ${key} with content type: ${contentType}`);
+      }
+      
+      // For videos, add additional headers for streaming support
+      if (contentType.startsWith('video/')) {
+        headers.set('Accept-Ranges', 'bytes');
+        headers.set('Cache-Control', 'public, max-age=3600');
+        
+        // If this is a range request, set appropriate status and headers
+        const contentRange = (result.res.headers as Record<string, string>)['content-range'];
+        if (rangeHeader && contentRange) {
+          headers.set('Content-Range', contentRange);
+          return new NextResponse(buffer, {
+            status: 206,
+            headers,
+          });
+        }
+      }
     } else {
       headers.set('Content-Disposition', 'attachment');
     }

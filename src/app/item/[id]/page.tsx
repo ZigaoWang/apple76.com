@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { openDb } from '@/lib/db';
 import { formatFileSize } from '@/lib/utils';
+import VideoPlayerWrapper from '@/components/VideoPlayerWrapper';
 
 interface ItemPageProps {
   params: { id: string };
@@ -15,7 +16,17 @@ export default async function ItemPage({ params }: ItemPageProps) {
   if (!item) return notFound();
 
   const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
+  
+  // Determine file type
   const isPDF = item.oss_key.toLowerCase().endsWith('.pdf');
+  const isVideo = item.oss_key.toLowerCase().endsWith('.mp4') || 
+                 item.oss_key.toLowerCase().endsWith('.mov') || 
+                 item.oss_key.toLowerCase().endsWith('.webm');
+  
+  // Generate a proper poster URL for videos 
+  const posterUrl = item.thumbnail_key 
+    ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
+    : undefined;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
@@ -35,6 +46,12 @@ export default async function ItemPage({ params }: ItemPageProps) {
                       style={{ minHeight: 600 }}
                       title="PDF Preview"
                       allowFullScreen
+                    />
+                  ) : isVideo ? (
+                    <VideoPlayerWrapper
+                      src={url} 
+                      poster={posterUrl}
+                      title={item.title}
                     />
                   ) : (
                     <img 
