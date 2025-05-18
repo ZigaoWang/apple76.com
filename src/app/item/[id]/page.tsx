@@ -22,11 +22,15 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const isVideo = item.oss_key.toLowerCase().endsWith('.mp4') || 
                  item.oss_key.toLowerCase().endsWith('.mov') || 
                  item.oss_key.toLowerCase().endsWith('.webm');
+  const isImage = item.oss_key.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|avif)$/i);
   
   // Generate a proper poster URL for videos 
   const posterUrl = item.thumbnail_key 
     ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
     : undefined;
+
+  // Check if file type is supported for preview
+  const supportsPreview = isPDF || isVideo || isImage;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
@@ -35,9 +39,29 @@ export default async function ItemPage({ params }: ItemPageProps) {
           <div className="p-8">
             <div className="flex flex-col md:flex-row gap-8">
               {/* Preview Section */}
-              <div className="md:w-2/3">
-                <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center">
-                  {isPDF ? (
+              <div className="md:w-2/3 flex flex-col">
+                <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center mb-4">
+                  {!supportsPreview ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <h3 className="text-xl font-semibold text-gray-700 mb-2">This file doesn&apos;t support preview</h3>
+                      <p className="text-gray-600 mb-4">Use the download button below to view this file.</p>
+                      <a
+                        href={url}
+                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download File
+                      </a>
+                    </div>
+                  ) : isPDF ? (
                     <iframe
                       src={`/pdfjs/web/viewer.html?file=${encodeURIComponent(url)}`}
                       width="100%"
@@ -61,10 +85,10 @@ export default async function ItemPage({ params }: ItemPageProps) {
                     />
                   )}
                 </div>
-                <div className="flex gap-4 mt-4">
+                <div className="flex gap-4 mt-2 mb-4">
                   <a 
                     href={url} 
-                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="flex-1 text-center px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
                     target="_blank" 
                     rel="noopener noreferrer" 
                     download
@@ -73,7 +97,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
                   </a>
                   <a 
                     href={url} 
-                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                    className="flex-1 text-center px-4 py-2 text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                     target="_blank" 
                     rel="noopener noreferrer"
                   >
