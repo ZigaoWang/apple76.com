@@ -8,28 +8,9 @@ interface CollectionPageProps {
   };
 }
 
-// Loading skeleton component
-function ItemSkeleton() {
-  return (
-    <div className="group animate-pulse">
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-200 aspect-[4/3]" />
-        <div className="p-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4 mb-2" />
-          <div className="h-6 bg-gray-200 rounded w-3/4 mb-3" />
-          <div className="flex gap-3">
-            <div className="flex-1 h-8 bg-gray-200 rounded" />
-            <div className="flex-1 h-8 bg-gray-200 rounded" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 async function getItemsByCollection(collection: string) {
   const db = await openDb();
-  return db.all('SELECT * FROM items WHERE collection = ? ORDER BY year DESC, uploaded_at DESC', collection);
+  return db.all('SELECT id, title, year, is_year_unknown, collection, oss_key, thumbnail_key FROM items WHERE collection = ? ORDER BY year DESC, uploaded_at DESC', collection);
 }
 
 export default async function CollectionPage({ params }: CollectionPageProps) {
@@ -127,9 +108,10 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
             const thumbnailUrl = item.thumbnail_key ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` : url;
             const previewUrl = `/item/${item.id}`;
             return (
-              <div key={item.id} className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
-                <Link href={previewUrl} className="block relative">
-                  <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative">
+              <div key={item.id} className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col">
+                <Link href={previewUrl} className="block relative w-full aspect-[4/3]">
+                  {/* Image Container with overflow hidden and transition */}
+                  <div className="relative w-full h-full overflow-hidden rounded-t-xl bg-gray-50 transition-transform duration-300 group-hover:scale-105">
                     {/* Tiny placeholder image for blur-up effect */}
                     <div 
                       className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
@@ -139,10 +121,11 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
                         backgroundPosition: 'center',
                       }}
                     />
+                    {/* Main image */}
                     <img 
                       src={thumbnailUrl} 
                       alt={item.title} 
-                      className="relative w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" 
+                      className="relative w-full h-full object-contain"
                       loading="lazy"
                       decoding="async"
                       onLoad={(e) => {
@@ -159,11 +142,11 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
                     </span>
                   </div>
                 </Link>
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                <div className="p-4 flex-grow flex flex-col">
+                  <h3 className="font-semibold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors flex-grow">
                     {item.title}
                   </h3>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 mt-auto">
                     <Link 
                       href={previewUrl} 
                       className="flex-1 text-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
