@@ -9,22 +9,22 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
   const buffer = await file.arrayBuffer();
   const contentType = file.type;
 
-  // For images, try to generate a thumbnail
   if (contentType.startsWith('image/')) {
     try {
-      // First try to process the image directly
+      // Generate a higher quality thumbnail for images
       const image = sharp(Buffer.from(buffer));
       const metadata = await image.metadata();
       
       // Calculate dimensions while maintaining aspect ratio
       const maxWidth = 800;
-      const maxHeight = 600;
+      const maxHeight = 1200; // Increased height to accommodate taller images
       const { width, height } = metadata;
       
       if (!width || !height) {
         throw new Error('Invalid image dimensions');
       }
 
+      // Calculate new dimensions while maintaining aspect ratio
       const ratio = Math.min(maxWidth / width, maxHeight / height);
       const newWidth = Math.round(width * ratio);
       const newHeight = Math.round(height * ratio);
@@ -58,7 +58,7 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
           throw new Error('Invalid image dimensions after conversion');
         }
 
-        const ratio = Math.min(800 / width, 600 / height);
+        const ratio = Math.min(800 / width, 1200 / height);
         const newWidth = Math.round(width * ratio);
         const newHeight = Math.round(height * ratio);
 
@@ -76,7 +76,6 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
         return { buffer: thumbnail, contentType: 'image/jpeg' };
       } catch (conversionError) {
         console.log('Image conversion failed:', conversionError);
-        // If both attempts fail, generate a generic image placeholder
         return generateImagePlaceholder();
       }
     }
