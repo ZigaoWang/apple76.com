@@ -50,11 +50,16 @@ export default function ItemCard({ item }: ItemCardProps) {
               style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
             />
           </div>
-          <div className="absolute top-3 right-3">
-            <span className="px-2 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 shadow-sm">
-              {item.is_year_unknown ? 'Year Unknown' : item.year}
-            </span>
-          </div>
+          
+          {/* Conditionally render year/unknown label */}
+          {!item.is_year_unknown && ( // Only show if year is known
+            <div className="absolute top-3 right-3">
+              <span className="px-2 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 shadow-sm">
+                {item.year} {/* Display the year if known */}
+              </span>
+            </div>
+          )}
+
         </Link>
         <div className="p-4 flex-grow flex flex-col">
           <div className="mb-2">
