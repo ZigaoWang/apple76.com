@@ -163,12 +163,12 @@ export async function POST(req: NextRequest) {
 
     try {
       // Generate thumbnail
-      const { buffer: thumbnailBuffer, contentType } = await generateThumbnail(file);
+      const { buffer: thumbnailBuffer } = await generateThumbnail(file);
 
       // Upload original file to OSS
       await client.put(oss_key, buffer, {
         headers: {
-          'Content-Type': contentType,
+          'Content-Type': file.type,
           'Content-Length': buffer.length.toString(),
         },
       });
