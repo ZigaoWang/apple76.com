@@ -3,14 +3,139 @@ import client from '@/lib/oss';
 import { openDb } from '@/lib/db';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import { promisify } from 'util';
+import ffmpeg from 'ffmpeg-static';
+import { spawn } from 'child_process';
+import path from 'path';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
 
-async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentType: string }> {
-  const buffer = await file.arrayBuffer();
+const unlinkAsync = promisify(fs.unlink);
+
+// Configure AWS S3 Client
+const s3Client = new S3Client({
+  region: process.env.OSS_REGION,
+  endpoint: process.env.OSS_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.OSS_ACCESS_KEY_ID as string,
+    secretAccessKey: process.env.OSS_ACCESS_KEY_SECRET as string,
+  },
+});
+
+const BUCKET_NAME = process.env.OSS_BUCKET_NAME;
+
+// Helper to parse form data
+// async function parseForm(req: Request): Promise<{ fields: formidable.Fields, files: formidable.Files }> {
+//     return new Promise((resolve, reject) => {
+//         const form = formidable({
+//              // Add options if needed, like limits
+//         });
+
+//         form.parse(req as any, (err: Error | null, fields: formidable.Fields, files: formidable.Files) => { // Explicitly type err
+//             if (err) {
+//                 reject(err);
+//                 return;
+//             }
+//             resolve({ fields, files });
+//         });
+//     });
+// }
+
+// Helper to upload file to S3
+async function uploadFileToS3(filePath: string, key: string, contentType: string): Promise<string> {
+  const fileStream = fs.createReadStream(filePath);
+  const uploadParams = {
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: fileStream,
+    ContentType: contentType,
+  };
+
+  try {
+    await s3Client.send(new PutObjectCommand(uploadParams));
+    return key;
+  } catch (err) {
+    console.error("Error uploading to S3:", err);
+    throw new Error(`Failed to upload file to S3: ${(err as Error).message}`);
+  }
+}
+
+// Helper to generate video thumbnail
+async function generateVideoThumbnail(videoPath: string, thumbnailKey: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    // Use a temporary directory for the thumbnail output
+    const tempDir = '/tmp/thumbnails';
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const tempThumbnailPath = path.join(tempDir, `${thumbnailKey}.png`);
+
+    // Spawn ffmpeg process with more robust options
+    const ffmpegProcess = spawn(ffmpeg as string, [
+      '-i', videoPath,
+      '-ss', '00:00:01', // Take frame at 1 second
+      '-vframes', '1',
+      '-vf', 'scale=320:-1', // Resize to 320 width, maintain aspect ratio
+      '-y', // Overwrite output file if it exists
+      '-loglevel', 'error', // Only show errors
+      tempThumbnailPath
+    ]);
+
+    let errorOutput = '';
+
+    ffmpegProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    ffmpegProcess.on('close', async (code) => {
+      if (code === 0 && fs.existsSync(tempThumbnailPath)) {
+        try {
+          // Verify the thumbnail was generated and is valid
+          const stats = fs.statSync(tempThumbnailPath);
+          if (stats.size === 0) {
+            console.error('Generated thumbnail is empty');
+            resolve(null);
+            return;
+          }
+
+          // Upload the generated thumbnail to S3
+          await uploadFileToS3(tempThumbnailPath, thumbnailKey, 'image/png');
+          
+          // Clean up the temporary thumbnail file
+          await unlinkAsync(tempThumbnailPath);
+          resolve(thumbnailKey);
+        } catch (uploadErr) {
+          console.error('Error uploading video thumbnail to S3:', uploadErr);
+          // Clean up on error
+          if (fs.existsSync(tempThumbnailPath)) {
+            await unlinkAsync(tempThumbnailPath).catch(console.error);
+          }
+          resolve(null);
+        }
+      } else {
+        console.error('Error generating video thumbnail:', {
+          code,
+          error: errorOutput
+        });
+        resolve(null);
+      }
+    });
+
+    ffmpegProcess.on('error', (err) => {
+      console.error('Error spawning ffmpeg process:', err);
+      resolve(null);
+    });
+  });
+}
+
+async function generateThumbnail(file: File, tempFilePath?: string): Promise<{ buffer: Buffer; contentType: string }> {
   const contentType = file.type;
 
   if (contentType.startsWith('image/')) {
+    const buffer = await file.arrayBuffer();
     try {
       // Generate a higher quality thumbnail for images
       const image = sharp(Buffer.from(buffer));
@@ -81,6 +206,7 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
       }
     }
   } else if (contentType === 'application/pdf') {
+    const buffer = await file.arrayBuffer();
     try {
       // Load the PDF document
       const pdfDoc = await PDFDocument.load(buffer);
@@ -113,6 +239,18 @@ async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentT
       console.log('PDF thumbnail generation failed:', error);
       return generatePdfPlaceholder();
     }
+  } else if (contentType.startsWith('video/') && tempFilePath) {
+      // Generate thumbnail for video
+      const thumbnailKey = `temp/${uuidv4()}.png`; // Use a temporary key for the thumbnail file
+      const generatedThumbnailKey = await generateVideoThumbnail(tempFilePath, thumbnailKey);
+      if (generatedThumbnailKey) {
+          // Read the generated thumbnail from the temporary location
+          const thumbnailBuffer = fs.readFileSync(path.join('/tmp/thumbnails', path.basename(thumbnailKey)));
+          return { buffer: thumbnailBuffer, contentType: 'image/png' };
+      } else {
+          console.log('Video thumbnail generation failed.');
+          return generatePdfPlaceholder(); // Fallback to placeholder
+      }
   }
 
   // For other file types, return a placeholder image
@@ -187,30 +325,54 @@ export async function POST(req: NextRequest) {
     // Generate a unique filename to prevent collisions
     const timestamp = Date.now();
     const originalName = file.name;
-    const oss_key = `${collection}/${timestamp}-${originalName}`;
-    const thumbnail_key = `${collection}/thumbnails/${timestamp}-${originalName}`;
+    const fileExtension = path.extname(originalName);
+    const baseName = path.basename(originalName, fileExtension);
+    const uniqueId = uuidv4();
 
-    // Convert file to buffer
+    const oss_key = `${collection}/${baseName}-${timestamp}-${uniqueId}${fileExtension}`;
+    const thumbnail_key = `${collection}/thumbnails/${baseName}-${timestamp}-${uniqueId}.png`; // Ensure thumbnail is always png
+
+    // Create a temporary file to process the upload
+    const tempDir = '/tmp/uploads';
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const tempFilePath = path.join(tempDir, `${timestamp}-${uniqueId}${fileExtension}`);
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(tempFilePath, Buffer.from(arrayBuffer));
+
+    let thumbnailBuffer: Buffer | null = null;
+    let thumbnailContentType = 'image/jpeg';
 
     try {
       // Generate thumbnail
-      const { buffer: thumbnailBuffer } = await generateThumbnail(file);
+      if (file.type.startsWith('video/')) {
+          const generatedThumbnailKey = await generateVideoThumbnail(tempFilePath, thumbnail_key);
+          if (generatedThumbnailKey) {
+              // Video thumbnail generation handles S3 upload internally
+              // No need to read buffer and upload again here
+              thumbnailBuffer = Buffer.from('placeholder'); // Just a non-empty buffer to indicate success
+          }
+      } else {
+          const { buffer, contentType } = await generateThumbnail(file, tempFilePath); // Pass file object for non-video
+          thumbnailBuffer = buffer;
+          thumbnailContentType = contentType;
+      }
 
-      // Upload original file to OSS
-      await client.put(oss_key, buffer, {
+      // Upload original file to OSS from temp location
+      const fileStream = fs.createReadStream(tempFilePath);
+      await client.put(oss_key, fileStream, {
         headers: {
           'Content-Type': file.type,
-          'Content-Length': buffer.length.toString(),
+          'Content-Length': fs.statSync(tempFilePath).size.toString(),
         },
       });
 
-      // Upload thumbnail to OSS
-      if (thumbnailBuffer.length > 0) {
+      // Upload thumbnail to OSS (only if not video, as video handler uploads itself)
+      if (thumbnailBuffer && thumbnailBuffer.length > 0) {
         await client.put(thumbnail_key, thumbnailBuffer, {
           headers: {
-            'Content-Type': 'image/jpeg',
+            'Content-Type': thumbnailContentType,
             'Content-Length': thumbnailBuffer.length.toString(),
           },
         });
@@ -219,7 +381,7 @@ export async function POST(req: NextRequest) {
       // Verify the uploads were successful
       try {
         await client.head(oss_key);
-        if (thumbnailBuffer.length > 0) {
+        if (thumbnailBuffer && thumbnailBuffer.length > 0) {
           await client.head(thumbnail_key);
         }
       } catch (error) {
@@ -235,8 +397,15 @@ export async function POST(req: NextRequest) {
           source, author, file_size, notes, is_year_unknown, thumbnail_key
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         title, year, collection, original_link, description, tags, oss_key,
-        source, author, buffer.length, notes, isYearUnknown ? 1 : 0, thumbnail_key
+        source, author, fs.statSync(tempFilePath).size, notes, isYearUnknown ? 1 : 0, thumbnail_key
       );
+
+      // Clean up temporary file
+      await unlinkAsync(tempFilePath);
+      // Clean up temporary thumbnail file if it exists (for video)
+      if (file.type.startsWith('video/') && fs.existsSync(path.join('/tmp/thumbnails', path.basename(thumbnail_key)))) {
+          await unlinkAsync(path.join('/tmp/thumbnails', path.basename(thumbnail_key)));
+      }
 
       if (req.headers.get('x-requested-with') === 'XMLHttpRequest') {
         return NextResponse.json({ success: true });
@@ -251,6 +420,15 @@ export async function POST(req: NextRequest) {
         await client.delete(thumbnail_key);
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);
+      }
+
+      // Clean up temporary file if it exists
+      if (fs.existsSync(tempFilePath)) {
+          await unlinkAsync(tempFilePath);
+      }
+      // Clean up temporary thumbnail file if it exists (for video)
+      if (file.type.startsWith('video/') && fs.existsSync(path.join('/tmp/thumbnails', path.basename(thumbnail_key)))) {
+          await unlinkAsync(path.join('/tmp/thumbnails', path.basename(thumbnail_key)));
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
@@ -270,4 +448,11 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.redirect(new URL('/admin?error=server_error', req.url));
   }
-} 
+}
+
+// Set body-parser to false for formidable to handle file parsing
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}; 
