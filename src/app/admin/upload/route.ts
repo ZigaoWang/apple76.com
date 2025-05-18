@@ -5,21 +5,117 @@ import sharp from 'sharp';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
 
-async function generateThumbnail(buffer: Buffer, fileType: string): Promise<Buffer> {
-  if (fileType === 'application/pdf') {
-    // For PDFs, we'll use a default PDF thumbnail image
-    // You might want to use pdf-preview or similar to generate actual PDF thumbnails
-    return Buffer.from(''); // Placeholder for now
+async function generateThumbnail(file: File): Promise<{ buffer: Buffer; contentType: string }> {
+  const buffer = await file.arrayBuffer();
+  const contentType = file.type;
+
+  // For images, try to generate a thumbnail
+  if (contentType.startsWith('image/')) {
+    try {
+      // First try to process the image directly
+      const image = sharp(Buffer.from(buffer));
+      const metadata = await image.metadata();
+      
+      // Calculate dimensions while maintaining aspect ratio
+      const maxWidth = 800;
+      const maxHeight = 600;
+      const { width, height } = metadata;
+      
+      if (!width || !height) {
+        throw new Error('Invalid image dimensions');
+      }
+
+      const ratio = Math.min(maxWidth / width, maxHeight / height);
+      const newWidth = Math.round(width * ratio);
+      const newHeight = Math.round(height * ratio);
+
+      const thumbnail = await image
+        .resize(newWidth, newHeight, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .jpeg({ 
+          quality: 90,
+          mozjpeg: true
+        })
+        .toBuffer();
+
+      return { buffer: thumbnail, contentType: 'image/jpeg' };
+    } catch (error) {
+      console.log('Initial image processing failed:', error);
+      
+      try {
+        // If direct processing fails, try to convert to JPEG first
+        console.log('Attempting to convert image to JPEG...');
+        const image = sharp(Buffer.from(buffer), { failOn: 'none' })
+          .toFormat('jpeg')
+          .jpeg({ quality: 90 });
+        
+        const metadata = await image.metadata();
+        const { width, height } = metadata;
+        
+        if (!width || !height) {
+          throw new Error('Invalid image dimensions after conversion');
+        }
+
+        const ratio = Math.min(800 / width, 600 / height);
+        const newWidth = Math.round(width * ratio);
+        const newHeight = Math.round(height * ratio);
+
+        const thumbnail = await image
+          .resize(newWidth, newHeight, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .jpeg({ 
+            quality: 90,
+            mozjpeg: true
+          })
+          .toBuffer();
+
+        return { buffer: thumbnail, contentType: 'image/jpeg' };
+      } catch (conversionError) {
+        console.log('Image conversion failed:', conversionError);
+        // If both attempts fail, generate a generic image placeholder
+        return generateImagePlaceholder();
+      }
+    }
   }
 
-  // For images, create a thumbnail
-  return sharp(buffer)
-    .resize(400, 300, {
-      fit: 'inside',
-      withoutEnlargement: true
-    })
-    .jpeg({ quality: 80 })
+  // For PDFs, return a placeholder image
+  return generatePdfPlaceholder();
+}
+
+// Helper function to generate a generic image placeholder
+async function generateImagePlaceholder(): Promise<{ buffer: Buffer; contentType: string }> {
+  const placeholder = await sharp({
+    create: {
+      width: 800,
+      height: 600,
+      channels: 4,
+      background: { r: 240, g: 240, b: 240, alpha: 1 }
+    }
+  })
+    .jpeg({ quality: 90 })
     .toBuffer();
+
+  return { buffer: placeholder, contentType: 'image/jpeg' };
+}
+
+// Helper function to generate a PDF placeholder
+async function generatePdfPlaceholder(): Promise<{ buffer: Buffer; contentType: string }> {
+  const placeholder = await sharp({
+    create: {
+      width: 800,
+      height: 600,
+      channels: 4,
+      background: { r: 240, g: 240, b: 240, alpha: 1 }
+    }
+  })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  return { buffer: placeholder, contentType: 'image/jpeg' };
 }
 
 export async function POST(req: NextRequest) {
@@ -67,12 +163,12 @@ export async function POST(req: NextRequest) {
 
     try {
       // Generate thumbnail
-      const thumbnailBuffer = await generateThumbnail(buffer, file.type);
+      const { buffer: thumbnailBuffer, contentType } = await generateThumbnail(file);
 
       // Upload original file to OSS
       await client.put(oss_key, buffer, {
         headers: {
-          'Content-Type': file.type,
+          'Content-Type': contentType,
           'Content-Length': buffer.length.toString(),
         },
       });
