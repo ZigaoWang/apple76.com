@@ -59,13 +59,13 @@ export default function HeroSearch({ backgroundItems }: HeroSearchProps) {
       </div>
 
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black opacity-60"></div> {/* Slightly darker overlay */}
+      {/* Removed the overlay div */}
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-900"> {/* Adjusted text color for better contrast without overlay */}
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight mb-6 leading-tight drop-shadow-lg">
           Apple76.com
         </h1>
-        <p className="text-xl sm:text-2xl text-gray-200 max-w-3xl mx-auto mb-10 leading-relaxed drop-shadow">
+        <p className="text-xl sm:text-2xl text-gray-700 max-w-3xl mx-auto mb-10 leading-relaxed drop-shadow">
           A curated collection of Apple&apos;s rich history through vintage manuals,
           advertisements, and rare memorabilia.
         </p>
