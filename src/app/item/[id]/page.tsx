@@ -3,13 +3,11 @@ import { openDb } from '@/lib/db';
 import { formatFileSize } from '@/lib/utils';
 
 interface ItemPageProps {
-  params: {
-    id: string;
-  };
+  params: { id: string };
 }
 
 export default async function ItemPage({ params }: ItemPageProps) {
-  const id = await Promise.resolve(parseInt(params.id, 10));
+  const id = parseInt(params.id, 10);
   if (isNaN(id)) return notFound();
 
   const db = await openDb();
@@ -17,9 +15,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
   if (!item) return notFound();
 
   const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
-  const thumbnailUrl = item.thumbnail_key ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` : null;
   const isPDF = item.oss_key.toLowerCase().endsWith('.pdf');
-  const isVideo = item.oss_key.toLowerCase().endsWith('.mp4');
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
@@ -30,19 +26,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
               {/* Preview Section */}
               <div className="md:w-2/3">
                 <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center">
-                  {isVideo ? (
-                    <div className="w-full">
-                      <video 
-                        controls 
-                        className="w-full rounded-lg shadow-lg"
-                        poster={thumbnailUrl || undefined}
-                        preload="metadata"
-                      >
-                        <source src={url} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                  ) : isPDF ? (
+                  {isPDF ? (
                     <iframe
                       src={`/pdfjs/web/viewer.html?file=${encodeURIComponent(url)}`}
                       width="100%"
