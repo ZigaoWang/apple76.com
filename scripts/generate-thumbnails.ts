@@ -1,98 +1,129 @@
+#!/usr/bin/env node
+
+import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
-
-console.log('OSS_REGION:', process.env.OSS_REGION);
-console.log('OSS_ACCESS_KEY_ID:', process.env.OSS_ACCESS_KEY_ID ? '[SET]' : '[NOT SET]');
-console.log('OSS_ACCESS_KEY_SECRET:', process.env.OSS_ACCESS_KEY_SECRET ? '[SET]' : '[NOT SET]');
-console.log('OSS_BUCKET:', process.env.OSS_BUCKET);
-console.log('OSS_ENDPOINT:', process.env.OSS_ENDPOINT);
-
+import { execSync } from 'child_process';
 import { openDb } from '../src/lib/db.js';
 import sharp from 'sharp';
-import path from 'path';
-import OSS from 'ali-oss'; // Import OSS constructor
-// import { pdf } from 'pdf-to-img'; // Remove static import
+import OSS from 'ali-oss';
 
-async function generateThumbnail(ossKey: string, contentType: string, ossClient: OSS): Promise<{ buffer: Buffer; contentType: string }> {
-  try {
-    // Get the file from OSS
-    const result = await ossClient.get(ossKey); // Use passed ossClient
-    const buffer = result.content;
+// Load environment variables
+dotenv.config({ path: '.env.local' });
 
-    // Normalize content type
-    const normalizedContentType = contentType.toLowerCase().trim();
+console.log('Checking environment variables...');
 
-    if (normalizedContentType === 'application/pdf' || ossKey.toLowerCase().endsWith('.pdf')) {
-      try {
-        // Use dynamic import for pdf-to-img due to top-level await
-        const { pdf } = await import('pdf-to-img');
-        
-        // Use pdf-to-img to generate thumbnail for PDFs
-        // We'll get the first page as a PNG buffer
-        const document = await pdf(buffer, { scale: 1.0 }); // scale 1.0 for a reasonable size
-        const firstPageImage = await document.getPage(1);
+// Check required environment variables
+const requiredEnvVars = [
+  'OSS_REGION',
+  'OSS_ACCESS_KEY_ID',
+  'OSS_ACCESS_KEY_SECRET',
+  'OSS_BUCKET'
+];
 
-        // Convert the PNG buffer to JPEG and resize/optimize if needed
-        const thumbnail = await sharp(firstPageImage)
-          .resize(800, 1200, {
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .jpeg({ 
-            quality: 90,
-            mozjpeg: true
-          })
-          .toBuffer();
-
-        return { buffer: thumbnail, contentType: 'image/jpeg' };
-
-      } catch (pdfError) {
-        console.error(`Error generating PDF thumbnail for ${ossKey}:`, pdfError);
-        // Fallback to a simple placeholder if pdf-to-img fails
-        return generatePlaceholder('PDF');
-      }
-
-    } else if (normalizedContentType.startsWith('image/') || 
-              /\.(jpe?g|png|gif|webp|tiff?|bmp)$/i.test(ossKey)) {
-      // Generate thumbnail for images
-      const image = sharp(buffer);
-      const metadata = await image.metadata();
-      
-      if (!metadata.width || !metadata.height) {
-        throw new Error('Invalid image dimensions');
-      }
-
-      // Calculate dimensions while maintaining aspect ratio
-      const maxWidth = 800;
-      const maxHeight = 1200;
-      const ratio = Math.min(maxWidth / metadata.width, maxHeight / metadata.height);
-      const newWidth = Math.round(metadata.width * ratio);
-      const newHeight = Math.round(metadata.height * ratio);
-
-      const thumbnail = await image
-        .resize(newWidth, newHeight, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .jpeg({ 
-          quality: 90,
-          mozjpeg: true
-        })
-        .toBuffer();
-
-      return { buffer: thumbnail, contentType: 'image/jpeg' };
-    }
-
-    // For other file types, generate a placeholder
-    return generatePlaceholder('FILE');
-  } catch (error) {
-    console.error(`Error processing file ${ossKey}:`, error);
-    throw error; // Re-throw the error to be handled by the caller
+let missingVars = [];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    missingVars.push(envVar);
   }
 }
 
-async function generatePlaceholder(type: string = 'FILE'): Promise<{ buffer: Buffer; contentType: string }> {
-  const placeholderText = type === 'PDF' ? 'PDF' : type;
+if (missingVars.length > 0) {
+  console.error(`Error: Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('Please ensure these variables are set in your .env.local file');
+  process.exit(1);
+}
+
+// Configure OSS client
+const ossClient = new OSS({
+  region: process.env.OSS_REGION,
+  accessKeyId: process.env.OSS_ACCESS_KEY_ID,
+  accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
+  bucket: process.env.OSS_BUCKET,
+  secure: true
+});
+
+async function generatePDFThumbnail(localFilePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+  try {
+    // Use dynamic import for pdf-to-img
+    const { pdf } = await import('pdf-to-img');
+    
+    // Read the file
+    const buffer = fs.readFileSync(localFilePath);
+    
+    // Use pdf-to-img to generate thumbnail for PDFs
+    // We'll get the first page as a PNG buffer
+    const document = await pdf(buffer, { scale: 1.0 }); // scale 1.0 for a reasonable size
+    const firstPageImage = await document.getPage(1);
+
+    // Convert the PNG buffer to JPEG and resize/optimize if needed
+    const thumbnail = await sharp(firstPageImage)
+      .resize(800, 1200, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .jpeg({ 
+        quality: 90,
+        mozjpeg: true
+      })
+      .toBuffer();
+
+    return { buffer: thumbnail, contentType: 'image/jpeg' };
+  } catch (pdfError) {
+    console.error(`Error generating PDF thumbnail:`, pdfError);
+    // Fallback to a simple placeholder
+    return generatePlaceholder('PDF');
+  }
+}
+
+async function generateVideoThumbnail(localFilePath: string): Promise<{ buffer: Buffer; contentType: string }> {
+  try {
+    // Create a temp directory for the thumbnail
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Temporary path for the extracted thumbnail
+    const thumbnailPath = path.join(tempDir, `thumb_${Date.now()}.jpg`);
+    
+    try {
+      // Try to extract a frame at 3 seconds
+      console.log(`Extracting frame at 3 seconds from ${localFilePath}...`);
+      execSync(`ffmpeg -y -i "${localFilePath}" -ss 00:00:03 -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbnailPath}"`, {
+        stdio: 'inherit'
+      });
+    } catch (_error) {
+      console.error(`FFmpeg error at 3 seconds, trying alternative timestamp...`);
+      try {
+        // Try at 1 second
+        execSync(`ffmpeg -y -i "${localFilePath}" -ss 00:00:01 -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbnailPath}"`, {
+          stdio: 'inherit'
+        });
+      } catch (_secondError) {
+        // Try the first frame
+        execSync(`ffmpeg -y -i "${localFilePath}" -vframes 1 -q:v 2 -vf "scale=640:-1" "${thumbnailPath}"`, {
+          stdio: 'inherit'
+        });
+      }
+    }
+    
+    // Read the generated thumbnail
+    const thumbnailBuffer = fs.readFileSync(thumbnailPath);
+    
+    // Clean up the temporary file
+    fs.unlinkSync(thumbnailPath);
+    
+    return { buffer: thumbnailBuffer, contentType: 'image/jpeg' };
+  } catch (error) {
+    console.error(`Error generating video thumbnail:`, error);
+    return generatePlaceholder('VIDEO');
+  }
+}
+
+async function generatePlaceholder(type = 'FILE'): Promise<{ buffer: Buffer; contentType: string }> {
+  const placeholderText = type === 'PDF' ? 'PDF' : type === 'VIDEO' ? 'VIDEO' : 'FILE';
+  
   const placeholder = await sharp({
     create: {
       width: 800,
@@ -101,102 +132,149 @@ async function generatePlaceholder(type: string = 'FILE'): Promise<{ buffer: Buf
       background: { r: 240, g: 240, b: 240, alpha: 1 }
     }
   })
-    .composite([{
-      input: {
-        text: {
-          text: placeholderText,
-          font: 'sans',
-          rgba: true
-        }
-      },
-      gravity: 'center'
-    }])
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  .composite([{
+    input: {
+      text: {
+        text: placeholderText,
+        font: 'sans',
+        rgba: true
+      }
+    },
+    gravity: 'center'
+  }])
+  .jpeg({ quality: 90 })
+  .toBuffer();
 
   return { buffer: placeholder, contentType: 'image/jpeg' };
 }
 
-async function main() {
-  // Initialize OSS client after dotenv
-  const client = new OSS({
-    region: process.env.OSS_REGION!,
-    accessKeyId: process.env.OSS_ACCESS_KEY_ID!,
-    accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET!,
-    bucket: process.env.OSS_BUCKET!,
-    endpoint: process.env.OSS_ENDPOINT!,
-    timeout: 60000, // 60 seconds timeout
-    secure: true, // Use HTTPS
-  });
+async function downloadFile(ossKey: string): Promise<string> {
+  // Create temporary directory if it doesn't exist
+  const tempDir = path.join(process.cwd(), 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
 
+  // Create a local path for the file
+  const localFilePath = path.join(tempDir, path.basename(ossKey));
+
+  // Download the file from OSS
+  const result = await ossClient.get(ossKey);
+  fs.writeFileSync(localFilePath, result.content);
+
+  return localFilePath;
+}
+
+async function main() {
+  console.log('Thumbnail generation script starting...');
+  
+  // Initialize the database connection
   const db = await openDb();
   
-  // Get all items
-  const items = await db.all(`
-    SELECT id, oss_key, title, collection
-    FROM items
+  // First, fix any items where the thumbnail is set to the original file (especially for PDFs)
+  console.log('Fixing incorrect thumbnail references...');
+  await db.run(`
+    UPDATE items 
+    SET thumbnail_key = NULL 
+    WHERE thumbnail_key = oss_key
   `);
-
-  console.log(`Found ${items.length} items to process`);
-
-  let successCount = 0;
-  let failureCount = 0;
-  const failedItems: Array<{ title: string; error: string }> = [];
-
+  
+  // Get all items without thumbnails - fix column selection to remove content_type
+  const items = await db.all(`
+    SELECT id, title, oss_key 
+    FROM items 
+    WHERE thumbnail_key IS NULL
+  `);
+  
+  console.log(`Found ${items.length} items without thumbnails to process`);
+  
+  // Create temporary directory for downloads
+  const tempDir = path.join(process.cwd(), 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+  
+  // Process each item
   for (const item of items) {
     try {
-      console.log(`Processing item: ${item.title} (${item.oss_key})`);
-
-      // Get the file's content type from OSS using the client
-      const head = await client.head(item.oss_key); // Use initialized client
-      const contentType = (head.res.headers as Record<string, string>)['content-type'] || 'application/octet-stream';
-
-      // Generate thumbnail, passing the client
-      const { buffer: thumbnailBuffer } = await generateThumbnail(item.oss_key, contentType, client);
-
-      // Create thumbnail key
-      const thumbnailKey = `${item.collection}/thumbnails/${path.basename(item.oss_key).replace(/\.[^/\\]+$/, '.jpeg')}`;
-
-      // Upload thumbnail to OSS using the client
-      await client.put(thumbnailKey, thumbnailBuffer, {
-        headers: {
-          'Content-Type': 'image/jpeg',
-          'Content-Length': thumbnailBuffer.length.toString(),
-        },
-      });
-
-      // Update database with thumbnail key
+      console.log(`Processing item ${item.id}: ${item.title}...`);
+      
+      // Determine file type
+      const ossKey = item.oss_key;
+      const isPDF = ossKey.toLowerCase().endsWith('.pdf');
+      const isVideo = ossKey.toLowerCase().endsWith('.mp4') || 
+                     ossKey.toLowerCase().endsWith('.mov') || 
+                     ossKey.toLowerCase().endsWith('.webm');
+      
+      // Skip if not a PDF or video (they should have regular image thumbnails already)
+      if (!isPDF && !isVideo) {
+        console.log(`Skipping item ${item.id}, not a PDF or video`);
+        continue;
+      }
+      
+      // Download the file from OSS to local temp directory
+      console.log(`Downloading ${ossKey}...`);
+      const localFilePath = await downloadFile(ossKey);
+      
+      // Generate thumbnail based on file type
+      let thumbnailResult;
+      if (isPDF) {
+        console.log(`Generating PDF thumbnail for ${item.id}...`);
+        thumbnailResult = await generatePDFThumbnail(localFilePath);
+      } else if (isVideo) {
+        console.log(`Generating video thumbnail for ${item.id}...`);
+        thumbnailResult = await generateVideoThumbnail(localFilePath);
+      } else {
+        // Should never reach here because of the skip above
+        console.log(`Unknown file type for ${item.id}, skipping...`);
+        fs.unlinkSync(localFilePath); // Clean up
+        continue;
+      }
+      
+      // Create a filename for the thumbnail
+      const fileExt = path.extname(ossKey);
+      const fileName = path.basename(ossKey, fileExt);
+      const thumbnailFileName = `${fileName}_thumb.jpg`;
+      
+      // Upload the thumbnail to OSS
+      const thumbnailKey = isPDF 
+        ? `thumbnails/pdfs/${item.id}_${thumbnailFileName}`
+        : `thumbnails/videos/${item.id}_${thumbnailFileName}`;
+      
+      console.log(`Uploading thumbnail to ${thumbnailKey}...`);
+      
+      // Create a temporary file for the thumbnail
+      const tempThumbnailPath = path.join(tempDir, thumbnailFileName);
+      fs.writeFileSync(tempThumbnailPath, thumbnailResult.buffer);
+      
+      // Upload to OSS
+      await ossClient.put(thumbnailKey, tempThumbnailPath);
+      
+      // Update the database with the thumbnail key
       await db.run(
         'UPDATE items SET thumbnail_key = ? WHERE id = ?',
         thumbnailKey,
         item.id
       );
-
-      console.log(`Successfully generated thumbnail for: ${item.title}`);
-      successCount++;
+      
+      console.log(`✅ Successfully processed item ${item.id}`);
+      
+      // Clean up local files
+      fs.unlinkSync(localFilePath);
+      fs.unlinkSync(tempThumbnailPath);
+      
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Failed to process item ${item.title}:`, errorMessage);
-      failedItems.push({ title: item.title, error: errorMessage });
-      failureCount++;
+      console.error(`Error processing item ${item.id}:`, error);
     }
   }
-
-  console.log('\nThumbnail generation complete!');
-  console.log(`Successfully processed: ${successCount} items`);
-  console.log(`Failed to process: ${failureCount} items`);
   
-  if (failedItems.length > 0) {
-    console.log('\nFailed items:');
-    failedItems.forEach(({ title, error }) => {
-      console.log(`- ${title}: ${error}`);
-    });
-  }
-
-  process.exit(failureCount > 0 ? 1 : 0);
+  console.log('Thumbnail generation completed!');
+  
+  // Close the database connection
+  await db.close();
 }
 
-main().catch((error) => {
-  console.error('Script failed:', error);
+main().catch(error => {
+  console.error('Error in thumbnail generation script:', error);
   process.exit(1);
 }); 

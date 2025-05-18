@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 interface VideoThumbnailProps {
@@ -24,6 +24,13 @@ export default function VideoThumbnail({
   // Generate a default gradient background for videos without thumbnails
   const colorHue = Math.floor((title.length * 137.5) % 360);
   const defaultBg = `linear-gradient(135deg, hsl(${colorHue}, 70%, 35%) 0%, hsl(${(colorHue + 60) % 360}, 70%, 45%) 100%)`;
+
+  // Ensure image styles are properly updated
+  useEffect(() => {
+    if (imageError) {
+      console.log(`Error loading thumbnail for video: ${title}`);
+    }
+  }, [imageError, title]);
 
   return (
     <Link href={linkUrl} className="block relative w-full aspect-[4/3]">
@@ -51,21 +58,15 @@ export default function VideoThumbnail({
             alt={title}
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
-            onLoad={() => setImageLoaded(true)}
+            onLoad={(e) => {
+              setImageLoaded(true);
+              const target = e.target as HTMLImageElement;
+              target.style.opacity = '1';
+            }}
             onError={() => setImageError(true)}
             style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
           />
         )}
-        
-        {/* Video play button overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-16 h-16 bg-black/60 rounded-full flex items-center justify-center transition-all duration-300 
-            opacity-70 group-hover:opacity-90 group-hover:scale-110 group-hover:bg-blue-600/80">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-            </svg>
-          </div>
-        </div>
       </div>
       
       {/* Labels */}

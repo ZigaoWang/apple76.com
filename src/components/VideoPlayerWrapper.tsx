@@ -14,16 +14,23 @@ interface VideoPlayerWrapperProps {
 
 export default function VideoPlayerWrapper({ src, poster, title }: VideoPlayerWrapperProps) {
   const [isClient, setIsClient] = useState(false);
+  const [posterError, setPosterError] = useState(false);
   
-  // Log poster URL for debugging
-  useEffect(() => {
-    console.log(`VideoPlayer for ${title} - Poster URL:`, poster);
-  }, [poster, title]);
-
   // Make sure we're on the client side before rendering the video player
   useEffect(() => {
     setIsClient(true);
-  }, []);
+    
+    // Check if poster URL exists
+    if (poster) {
+      const img = new Image();
+      img.src = poster;
+      img.onload = () => setPosterError(false);
+      img.onerror = () => {
+        console.log(`Poster image for ${title} could not be loaded`);
+        setPosterError(true);
+      };
+    }
+  }, [poster, title]);
 
   if (!isClient) {
     // Loading placeholder while on server or before hydration
@@ -44,7 +51,7 @@ export default function VideoPlayerWrapper({ src, poster, title }: VideoPlayerWr
   return (
     <VideoPlayer 
       src={src} 
-      poster={poster} 
+      poster={posterError ? undefined : poster} 
       title={title} 
     />
   );

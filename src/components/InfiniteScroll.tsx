@@ -73,10 +73,16 @@ export default function InfiniteScroll() {
   return (
     <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4">
       {items.map((item) => (
-        <ItemCard key={item.id} item={item} /> // Use the shared ItemCard component
+        <div key={item.id} className="mb-4 break-inside-avoid">
+          <ItemCard item={item} />
+        </div>
       ))}
       {/* Show skeletons while loading */}
-      {loading && Array.from({ length: 12 }).map((_, index) => <ItemSkeleton key={page * 12 + index} />)}
+      {loading && Array.from({ length: 12 }).map((_, index) => (
+        <div key={page * 12 + index} className="mb-4 break-inside-avoid">
+          <ItemSkeleton />
+        </div>
+      ))}
       <div ref={ref} className="h-20 flex items-center justify-center">
       </div>
     </div>

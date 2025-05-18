@@ -20,31 +20,28 @@ interface ItemCardProps {
 export default function ItemCard({ item }: ItemCardProps) {
   const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
   
-  // Check if the file is a video
+  // Check file types
   const isVideo = item.oss_key.toLowerCase().endsWith('.mp4') || 
                   item.oss_key.toLowerCase().endsWith('.mov') ||
                   item.oss_key.toLowerCase().endsWith('.webm');
   
-  // For videos, we want to use the actual thumbnail but we need to ensure it's not using 
-  // the video itself as the thumbnail source, as that won't work visually
-  const videoThumbnailUrl = item.thumbnail_key 
+  const isPDF = item.oss_key.toLowerCase().endsWith('.pdf');
+  
+  // Handle different thumbnail scenarios
+  const videoThumbnailUrl = item.thumbnail_key && isVideo
     ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
     : null;
   
-  // For non-videos, we can fall back to the file itself if no thumbnail exists
-  const regularThumbnailUrl = item.thumbnail_key 
-    ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}` 
-    : url;
-  
-  // For debugging
-  if (isVideo) {
-    console.log(`Video: ${item.title} (ID: ${item.id})`);
-    console.log(`- OSS Key: ${item.oss_key}`);
-    console.log(`- Thumbnail Key: ${item.thumbnail_key}`);
-    console.log(`- Using thumbnail URL: ${videoThumbnailUrl}`);
-  }
+  // For regular content
+  const thumbnailUrl = item.thumbnail_key && item.thumbnail_key !== item.oss_key
+    ? `/api/oss-proxy?key=${encodeURIComponent(item.thumbnail_key)}`
+    : isPDF ? null : url;
   
   const previewUrl = `/item/${item.id}`;
+
+  // Create a default background color based on the title for items without thumbnails
+  const colorHue = Math.floor((item.title.length * 137.5) % 360);
+  const defaultBg = `linear-gradient(135deg, hsl(${colorHue}, 70%, 35%) 0%, hsl(${(colorHue + 60) % 360}, 70%, 45%) 100%)`;
 
   return (
     <div className="break-inside-avoid group">
@@ -58,38 +55,59 @@ export default function ItemCard({ item }: ItemCardProps) {
             isYearUnknown={item.is_year_unknown}
           />
         ) : (
-          <Link href={previewUrl} className="block relative w-full aspect-[4/3]">
+          <Link href={previewUrl} className="block relative w-full">
             {/* Image Container with overflow hidden and transition */}
-            <div className="relative w-full h-full overflow-hidden rounded-t-xl bg-gray-100 transition-transform duration-300 group-hover:scale-105">
-              {/* Tiny placeholder image for blur-up effect */}
-              <div
-                className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
-                style={{
-                  backgroundImage: `url(${regularThumbnailUrl}?x-oss-process=image/resize,w_20)`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-              {/* Main image */}
-              <img
-                src={regularThumbnailUrl}
-                alt={item.title}
-                className="relative w-full h-full object-cover"
-                loading="lazy"
-                decoding="async"
-                onLoad={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.opacity = '1';
-                }}
-                style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
-              />
+            <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-100 transition-transform duration-300 group-hover:scale-105" 
+                 style={{ aspectRatio: isPDF ? '3/4' : '4/3' }}>
+              {/* Default background for no-thumbnail or loading states */}
+              {(!thumbnailUrl || isPDF) && (
+                <div 
+                  className="absolute inset-0 w-full h-full flex items-center justify-center"
+                  style={{ background: defaultBg }}
+                >
+                  {isPDF && (
+                    <div className="text-white font-bold text-2xl">PDF</div>
+                  )}
+                </div>
+              )}
+              
+              {/* Main image if available */}
+              {thumbnailUrl && (
+                <>
+                  {/* No blur effect - can cause 404s with OSS resize */}
+                  <img
+                    src={thumbnailUrl}
+                    alt={item.title}
+                    className="relative w-full h-full object-cover bg-gray-100"
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.opacity = '1';
+                    }}
+                    onError={(e) => {
+                      // Hide the image on error
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                    style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
+                  />
+                </>
+              )}
+            </div>
+            
+            {/* File type label */}
+            <div className="absolute bottom-3 right-3">
+              <span className="px-2 py-1 text-xs font-medium bg-black/70 text-white rounded-md shadow-sm">
+                {isPDF ? 'PDF' : 'Image'}
+              </span>
             </div>
             
             {/* Conditionally render year/unknown label */}
-            {!item.is_year_unknown && ( // Only show if year is known
+            {!item.is_year_unknown && item.year && (
               <div className="absolute top-3 right-3">
                 <span className="px-2 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 shadow-sm">
-                  {item.year} {/* Display the year if known */}
+                  {item.year}
                 </span>
               </div>
             )}
