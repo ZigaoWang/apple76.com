@@ -3,7 +3,6 @@ import client from '@/lib/oss';
 import { openDb } from '@/lib/db';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import { promisify } from 'util';
@@ -14,54 +13,6 @@ import path from 'path';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'apple76admin';
 
 const unlinkAsync = promisify(fs.unlink);
-
-// Configure AWS S3 Client
-const s3Client = new S3Client({
-  region: process.env.OSS_REGION,
-  endpoint: process.env.OSS_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.OSS_ACCESS_KEY_ID as string,
-    secretAccessKey: process.env.OSS_ACCESS_KEY_SECRET as string,
-  },
-});
-
-const BUCKET_NAME = process.env.OSS_BUCKET_NAME;
-
-// Helper to parse form data
-// async function parseForm(req: Request): Promise<{ fields: formidable.Fields, files: formidable.Files }> {
-//     return new Promise((resolve, reject) => {
-//         const form = formidable({
-//              // Add options if needed, like limits
-//         });
-
-//         form.parse(req as any, (err: Error | null, fields: formidable.Fields, files: formidable.Files) => { // Explicitly type err
-//             if (err) {
-//                 reject(err);
-//                 return;
-//             }
-//             resolve({ fields, files });
-//         });
-//     });
-// }
-
-// Helper to upload file to S3
-async function uploadFileToS3(filePath: string, key: string, contentType: string): Promise<string> {
-  const fileStream = fs.createReadStream(filePath);
-  const uploadParams = {
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: fileStream,
-    ContentType: contentType,
-  };
-
-  try {
-    await s3Client.send(new PutObjectCommand(uploadParams));
-    return key;
-  } catch (err) {
-    console.error("Error uploading to S3:", err);
-    throw new Error(`Failed to upload file to S3: ${(err as Error).message}`);
-  }
-}
 
 // Helper to generate video thumbnail
 async function generateVideoThumbnail(videoPath: string, thumbnailKey: string): Promise<string | null> {
@@ -101,14 +52,20 @@ async function generateVideoThumbnail(videoPath: string, thumbnailKey: string): 
             return;
           }
 
-          // Upload the generated thumbnail to S3
-          await uploadFileToS3(tempThumbnailPath, thumbnailKey, 'image/png');
+          // Upload the generated thumbnail to OSS
+          const fileStream = fs.createReadStream(tempThumbnailPath);
+          await client.put(thumbnailKey, fileStream, {
+            headers: {
+              'Content-Type': 'image/png',
+              'Content-Length': stats.size.toString(),
+            },
+          });
           
           // Clean up the temporary thumbnail file
           await unlinkAsync(tempThumbnailPath);
           resolve(thumbnailKey);
         } catch (uploadErr) {
-          console.error('Error uploading video thumbnail to S3:', uploadErr);
+          console.error('Error uploading video thumbnail to OSS:', uploadErr);
           // Clean up on error
           if (fs.existsSync(tempThumbnailPath)) {
             await unlinkAsync(tempThumbnailPath).catch(console.error);
