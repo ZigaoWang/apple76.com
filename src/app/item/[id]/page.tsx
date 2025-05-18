@@ -2,13 +2,17 @@ import { notFound } from 'next/navigation';
 import { openDb } from '@/lib/db';
 import { formatFileSize } from '@/lib/utils';
 import VideoPlayerWrapper from '@/components/VideoPlayerWrapper';
+import Link from 'next/link';
 
 interface ItemPageProps {
   params: { id: string };
 }
 
 export default async function ItemPage({ params }: ItemPageProps) {
-  const id = parseInt(params.id, 10);
+  // Properly handle params
+  const paramsValue = await Promise.resolve(params);
+  const id = parseInt(paramsValue.id, 10);
+  
   if (isNaN(id)) return notFound();
 
   const db = await openDb();
@@ -108,7 +112,15 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
               {/* Details Section */}
               <div className="md:w-1/3">
-                <h1 className="text-3xl font-bold text-gray-900 mb-4">{item.title}</h1>
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-3xl font-bold text-gray-900">{item.title}</h1>
+                  <Link 
+                    href={`/admin/items/${id}/edit`}
+                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md border border-gray-300 transition-colors"
+                  >
+                    Edit
+                  </Link>
+                </div>
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm font-medium text-gray-500">Museum ID</span>
