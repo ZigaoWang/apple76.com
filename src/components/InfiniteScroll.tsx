@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
+import Link from 'next/link';
 
 interface Item {
   id: number;
@@ -78,7 +79,7 @@ export default function InfiniteScroll() {
         return (
           <div key={item.id} className="break-inside-avoid group">
             <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
-              <a href={previewUrl} className="block relative">
+              <Link href={previewUrl} className="block relative">
                 <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-100">
                   {/* Tiny placeholder image for blur-up effect */}
                   <div 
@@ -108,7 +109,7 @@ export default function InfiniteScroll() {
                     {item.is_year_unknown ? 'Year Unknown' : item.year}
                   </span>
                 </div>
-              </a>
+              </Link>
               <div className="p-4">
                 <div className="mb-2">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-50 text-blue-600 rounded-full">
@@ -119,12 +120,12 @@ export default function InfiniteScroll() {
                   {item.title}
                 </h3>
                 <div className="flex gap-3">
-                  <a 
+                  <Link 
                     href={previewUrl} 
                     className="flex-1 text-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     Preview
-                  </a>
+                  </Link>
                   <a 
                     href={url} 
                     className="flex-1 text-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
@@ -140,15 +141,9 @@ export default function InfiniteScroll() {
           </div>
         );
       })}
+      {/* Show skeletons while loading */}
+      {loading && Array.from({ length: 12 }).map((_, index) => <ItemSkeleton key={page * 12 + index} />)}
       <div ref={ref} className="h-20 flex items-center justify-center">
-        {loading && (
-          <>
-            <ItemSkeleton />
-            <ItemSkeleton />
-            <ItemSkeleton />
-            <ItemSkeleton />
-          </>
-        )}
       </div>
     </div>
   );
