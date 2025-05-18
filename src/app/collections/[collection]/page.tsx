@@ -8,6 +8,25 @@ interface CollectionPageProps {
   };
 }
 
+// Loading skeleton component
+function ItemSkeleton() {
+  return (
+    <div className="group animate-pulse">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-200 aspect-[4/3]" />
+        <div className="p-4">
+          <div className="h-4 bg-gray-200 rounded w-1/4 mb-2" />
+          <div className="h-6 bg-gray-200 rounded w-3/4 mb-3" />
+          <div className="flex gap-3">
+            <div className="flex-1 h-8 bg-gray-200 rounded" />
+            <div className="flex-1 h-8 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function getItemsByCollection(collection: string) {
   const db = await openDb();
   return db.all('SELECT * FROM items WHERE collection = ? ORDER BY year DESC, uploaded_at DESC', collection);
@@ -85,20 +104,23 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <span className="text-4xl">{info.icon}</span>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {info.title}
+    <main className="min-h-screen bg-white">
+      {/* Hero Section */}
+      <div className="relative bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {collection.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
             </h1>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8 leading-relaxed">
+              Explore our collection of {collection.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}.
+            </p>
           </div>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            {info.description}
-          </p>
         </div>
+      </div>
 
+      {/* Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {items.map((item) => {
             const url = `/api/oss-proxy?key=${encodeURIComponent(item.oss_key)}`;
@@ -107,12 +129,28 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
             return (
               <div key={item.id} className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
                 <Link href={previewUrl} className="block relative">
-                  <div className="aspect-[4/3] bg-gray-50 overflow-hidden">
+                  <div className="aspect-[4/3] bg-gray-50 overflow-hidden relative">
+                    {/* Tiny placeholder image for blur-up effect */}
+                    <div 
+                      className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
+                      style={{
+                        backgroundImage: `url(${thumbnailUrl}?x-oss-process=image/resize,w_20)`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }}
+                    />
                     <img 
                       src={thumbnailUrl} 
                       alt={item.title} 
-                      className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" 
+                      className="relative w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" 
                       loading="lazy"
+                      decoding="async"
+                      onLoad={(e) => {
+                        // Remove blur effect once image is loaded
+                        const target = e.target as HTMLImageElement;
+                        target.style.opacity = '1';
+                      }}
+                      style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
                     />
                   </div>
                   <div className="absolute top-2 right-2">
@@ -122,7 +160,9 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
                   </div>
                 </Link>
                 <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3 line-clamp-2">{item.title}</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    {item.title}
+                  </h3>
                   <div className="flex gap-3">
                     <Link 
                       href={previewUrl} 
@@ -146,6 +186,16 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
           })}
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center text-gray-500 text-sm">
+            <p>Made by Zigao Wang. Not affiliated with Apple Inc.</p>
+            <p className="mt-2">© {new Date().getFullYear()} Apple76.com. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 } 

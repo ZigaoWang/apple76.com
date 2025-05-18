@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 
 interface Item {
@@ -13,19 +13,41 @@ interface Item {
   thumbnail_key: string | null;
 }
 
+// Loading skeleton component
+function ItemSkeleton() {
+  return (
+    <div className="break-inside-avoid group animate-pulse">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-200 aspect-[4/3]" />
+        <div className="p-4">
+          <div className="h-4 bg-gray-200 rounded w-1/4 mb-2" />
+          <div className="h-6 bg-gray-200 rounded w-3/4 mb-3" />
+          <div className="flex gap-3">
+            <div className="flex-1 h-8 bg-gray-200 rounded" />
+            <div className="flex-1 h-8 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InfiniteScroll() {
   const [items, setItems] = useState<Item[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const { ref, inView } = useInView();
+  const { ref, inView } = useInView({
+    threshold: 0.1,
+    rootMargin: '100px',
+  });
 
   const loadMore = async () => {
     if (loading || !hasMore) return;
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/items?page=${page}&limit=20`);
+      const response = await fetch(`/api/items?page=${page}&limit=12`); // Reduced batch size for better performance
       const data = await response.json();
       
       if (data.items.length === 0) {
@@ -58,12 +80,27 @@ export default function InfiniteScroll() {
             <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
               <a href={previewUrl} className="block relative">
                 <div className="relative w-full overflow-hidden rounded-t-xl bg-gray-100">
+                  {/* Tiny placeholder image for blur-up effect */}
+                  <div 
+                    className="absolute inset-0 w-full h-full bg-gray-200 blur-xl scale-110"
+                    style={{
+                      backgroundImage: `url(${thumbnailUrl}?x-oss-process=image/resize,w_20)`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
                   <img
                     src={thumbnailUrl}
                     alt={item.title}
-                    className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="relative w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
                     decoding="async"
+                    onLoad={(e) => {
+                      // Remove blur effect once image is loaded
+                      const target = e.target as HTMLImageElement;
+                      target.style.opacity = '1';
+                    }}
+                    style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
                   />
                 </div>
                 <div className="absolute top-3 right-3">
@@ -105,7 +142,12 @@ export default function InfiniteScroll() {
       })}
       <div ref={ref} className="h-20 flex items-center justify-center">
         {loading && (
-          <div className="text-gray-500">Loading more items...</div>
+          <>
+            <ItemSkeleton />
+            <ItemSkeleton />
+            <ItemSkeleton />
+            <ItemSkeleton />
+          </>
         )}
       </div>
     </div>
