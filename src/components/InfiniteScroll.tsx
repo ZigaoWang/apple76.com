@@ -54,7 +54,20 @@ export default function InfiniteScroll() {
     try {
       // Add cache-busting query parameter
       const timestamp = new Date().getTime();
-      const response = await fetch(`/api/items?page=${page}&limit=12&t=${timestamp}`);
+      
+      // Wrap fetch in a timeout to abort if it takes too long
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`/api/items?page=${page}&limit=12&t=${timestamp}`, {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Server responded with status: ${response.status}`);
@@ -73,7 +86,20 @@ export default function InfiniteScroll() {
       setRetryCount(0);
     } catch (error) {
       console.error('Error loading more items:', error);
-      setError(`Failed to load items. ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to load items. ';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage += 'Request timed out. Please check your connection.';
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Unknown error occurred.';
+      }
+      
+      setError(errorMessage);
       
       // Don't retry more than 3 times
       if (retryCount < 3) {

@@ -352,6 +352,12 @@ export default function AdminDashboard({ items }: AdminDashboardProps) {
                           Delete
                         </button>
                         <a 
+                          href={`/admin/items/${item.id}/edit`} 
+                          className="text-indigo-600 hover:text-indigo-900 transition-colors duration-200"
+                        >
+                          Edit
+                        </a>
+                        <a 
                           href={`/item/${item.id}`} 
                           className="text-blue-600 hover:text-blue-900 transition-colors duration-200" 
                           target="_blank"

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 
 interface Item {
@@ -22,9 +22,10 @@ interface Item {
   uploaded_at: string;
 }
 
-export default function EditItem({ params }: { params: { id: string } }) {
-  // Access id directly as a string to avoid React.use() issues in client components
-  const itemId = params.id;
+export default function EditItem() {
+  // Extract ID from pathname instead of using params
+  const pathname = usePathname();
+  const itemId = pathname?.split('/')[3]; // "/admin/items/[id]/edit" -> [id] is at index 3
   
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
@@ -49,12 +50,37 @@ export default function EditItem({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     async function fetchItem() {
+      if (!itemId) {
+        setError('Invalid item ID');
+        setLoading(false);
+        return;
+      }
+      
       try {
-        const response = await fetch(`/api/items/${itemId}`);
-        if (!response.ok) {
-          throw new Error(`Error fetching item: ${response.statusText}`);
+        // Add cache-busting timestamp to avoid caching issues
+        const timestamp = Date.now();
+        const response = await fetch(`/api/items/${itemId}?t=${timestamp}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (response.status === 404) {
+          setError('Item not found');
+          setLoading(false);
+          return;
         }
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching item: ${response.status} ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid response data');
+        }
+        
         setItem(data);
         
         // If there's a thumbnail, set the preview
@@ -62,6 +88,7 @@ export default function EditItem({ params }: { params: { id: string } }) {
           setThumbnailPreview(`/api/oss-proxy?key=${encodeURIComponent(data.thumbnail_key)}`);
         }
       } catch (err) {
+        console.error('Error fetching item:', err);
         setError(err instanceof Error ? err.message : 'Failed to load item');
       } finally {
         setLoading(false);
@@ -143,16 +170,21 @@ export default function EditItem({ params }: { params: { id: string } }) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/items/${item.id}`, {
+      // Add cache-busting timestamp to avoid caching issues
+      const timestamp = Date.now();
+      const response = await fetch(`/api/items/${item.id}?t=${timestamp}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify(item)
       });
       
       if (!response.ok) {
-        throw new Error(`Error updating item: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+        const errorMsg = errorData?.error || response.statusText;
+        throw new Error(`Error updating item: ${response.status} ${errorMsg}`);
       }
       
       const data = await response.json();
@@ -162,6 +194,7 @@ export default function EditItem({ params }: { params: { id: string } }) {
       // Remove success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
+      console.error('Error saving item:', err);
       setError(err instanceof Error ? err.message : 'Failed to save item');
     } finally {
       setIsSaving(false);
@@ -171,12 +204,12 @@ export default function EditItem({ params }: { params: { id: string } }) {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white p-8 rounded-xl shadow-sm animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-6"></div>
+        <div className="bg-white p-8 rounded-xl shadow-sm animate-pulse border border-gray-100">
+          <div className="h-8 bg-gray-100 rounded w-1/3 mb-6"></div>
           <div className="space-y-4">
-            <div className="h-6 bg-gray-200 rounded w-full"></div>
-            <div className="h-6 bg-gray-200 rounded w-2/3"></div>
-            <div className="h-6 bg-gray-200 rounded w-full"></div>
+            <div className="h-6 bg-gray-100 rounded w-full"></div>
+            <div className="h-6 bg-gray-100 rounded w-2/3"></div>
+            <div className="h-6 bg-gray-100 rounded w-full"></div>
           </div>
         </div>
       </div>
@@ -186,12 +219,12 @@ export default function EditItem({ params }: { params: { id: string } }) {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-red-50 border border-red-200 p-8 rounded-xl text-center">
+        <div className="bg-white border border-red-100 p-8 rounded-xl text-center">
           <h2 className="text-xl font-medium text-red-600 mb-4">Error</h2>
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => router.push('/admin')}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+            className="px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 transition-colors border border-gray-200"
           >
             Go Back
           </button>
@@ -203,11 +236,11 @@ export default function EditItem({ params }: { params: { id: string } }) {
   if (!item) {
     return (
       <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-red-50 border border-red-200 p-8 rounded-xl text-center">
+        <div className="bg-white border border-red-100 p-8 rounded-xl text-center">
           <h2 className="text-xl font-medium text-red-600 mb-4">Item Not Found</h2>
           <button
             onClick={() => router.push('/admin')}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+            className="px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-700 transition-colors border border-gray-200"
           >
             Go Back
           </button>
@@ -217,260 +250,262 @@ export default function EditItem({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8">
-      <div className="bg-white shadow-sm rounded-xl p-6 md:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Edit Item #{item.id}</h1>
-        
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-lg">
-            <p className="text-green-700">Item updated successfully!</p>
-          </div>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Title */}
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              Title *
-            </label>
-            <input
-              type="text"
-              id="title"
-              name="title"
-              required
-              value={item.title}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-4xl mx-auto p-4 md:p-8 bg-white">
+        <div className="bg-white shadow-sm rounded-xl p-6 md:p-8 border border-gray-100">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6">Edit Item #{item.id}</h1>
           
-          {/* Collection */}
-          <div>
-            <label htmlFor="collection" className="block text-sm font-medium text-gray-700 mb-1">
-              Collection *
-            </label>
-            <select
-              id="collection"
-              name="collection"
-              required
-              value={item.collection}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select a collection</option>
-              {collections.map(collection => (
-                <option key={collection} value={collection}>
-                  {collection.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                </option>
-              ))}
-            </select>
-          </div>
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-lg">
+              <p className="text-green-700">Item updated successfully!</p>
+            </div>
+          )}
           
-          {/* Year */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-grow">
-              <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Title */}
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
               </label>
               <input
-                type="number"
-                id="year"
-                name="year"
-                value={item.year || ''}
+                type="text"
+                id="title"
+                name="title"
+                required
+                value={item.title}
                 onChange={handleChange}
-                disabled={item.is_year_unknown}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
               />
             </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="is_year_unknown"
-                  checked={item.is_year_unknown}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">Year unknown</span>
+            
+            {/* Collection */}
+            <div>
+              <label htmlFor="collection" className="block text-sm font-medium text-gray-700 mb-1">
+                Collection *
               </label>
+              <select
+                id="collection"
+                name="collection"
+                required
+                value={item.collection}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Select a collection</option>
+                {collections.map(collection => (
+                  <option key={collection} value={collection}>
+                    {collection.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-          
-          {/* Thumbnail */}
-          <div>
-            <label htmlFor="thumbnail" className="block text-sm font-medium text-gray-700 mb-1">
-              Thumbnail
-            </label>
-            <div className="flex items-start gap-4">
-              {thumbnailPreview && (
-                <div className="w-32 h-32 relative border border-gray-200 rounded-lg overflow-hidden">
-                  <Image
-                    src={thumbnailPreview}
-                    alt="Thumbnail preview"
-                    fill
-                    style={{ objectFit: 'contain' }}
-                  />
-                </div>
-              )}
-              <div className="flex-1">
+            
+            {/* Year */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-grow">
+                <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+                  Year
+                </label>
                 <input
-                  type="file"
-                  ref={fileInputRef}
-                  id="thumbnail"
-                  accept="image/*"
-                  onChange={handleThumbnailChange}
-                  className="hidden"
+                  type="number"
+                  id="year"
+                  name="year"
+                  value={item.year || ''}
+                  onChange={handleChange}
+                  disabled={item.is_year_unknown}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400 bg-white"
                 />
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors text-sm font-medium"
-                  >
-                    {thumbnailPreview ? 'Change Thumbnail' : 'Upload Thumbnail'}
-                  </button>
-                  {thumbnailPreview && (
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="is_year_unknown"
+                    checked={item.is_year_unknown}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-500 focus:ring-blue-400 border-gray-200"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">Year unknown</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* Thumbnail */}
+            <div>
+              <label htmlFor="thumbnail" className="block text-sm font-medium text-gray-700 mb-1">
+                Thumbnail
+              </label>
+              <div className="flex items-start gap-4">
+                {thumbnailPreview && (
+                  <div className="w-32 h-32 relative border border-gray-100 rounded-lg overflow-hidden bg-white">
+                    <Image
+                      src={thumbnailPreview}
+                      alt="Thumbnail preview"
+                      fill
+                      style={{ objectFit: 'contain' }}
+                    />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    id="thumbnail"
+                    accept="image/*"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                  />
+                  <div className="flex flex-col gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setThumbnailPreview(null);
-                        setItem({...item, thumbnail_key: null});
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors text-sm font-medium"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition-colors text-sm font-medium"
                     >
-                      Remove Thumbnail
+                      {thumbnailPreview ? 'Change Thumbnail' : 'Upload Thumbnail'}
                     </button>
-                  )}
+                    {thumbnailPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setThumbnailPreview(null);
+                          setItem({...item, thumbnail_key: null});
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="px-4 py-2 bg-white hover:bg-red-50 text-red-600 rounded-lg border border-red-100 transition-colors text-sm font-medium"
+                      >
+                        Remove Thumbnail
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          
-          {/* Author */}
-          <div>
-            <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-1">
-              Author
-            </label>
-            <input
-              type="text"
-              id="author"
-              name="author"
-              value={item.author || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          {/* Source */}
-          <div>
-            <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
-              Source
-            </label>
-            <input
-              type="text"
-              id="source"
-              name="source"
-              value={item.source || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          {/* Original Link */}
-          <div>
-            <label htmlFor="original_link" className="block text-sm font-medium text-gray-700 mb-1">
-              Original Link
-            </label>
-            <input
-              type="url"
-              id="original_link"
-              name="original_link"
-              value={item.original_link || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          {/* Description */}
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              rows={4}
-              value={item.description || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            ></textarea>
-          </div>
-          
-          {/* Tags */}
-          <div>
-            <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
-              Tags (comma-separated)
-            </label>
-            <input
-              type="text"
-              id="tags"
-              name="tags"
-              value={item.tags || ''}
-              onChange={handleChange}
-              placeholder="apple, macintosh, retro, vintage"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          {/* Notes */}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
-            </label>
-            <textarea
-              id="notes"
-              name="notes"
-              rows={3}
-              value={item.notes || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            ></textarea>
-          </div>
-          
-          {/* File info - read only */}
-          <div className="border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">File Information</h3>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <dt className="text-gray-500">File Size:</dt>
-              <dd>{formatFileSize(item.file_size)}</dd>
-              
-              <dt className="text-gray-500">OSS Key:</dt>
-              <dd className="break-all text-xs">{item.oss_key}</dd>
-              
-              <dt className="text-gray-500">Uploaded:</dt>
-              <dd>{new Date(item.uploaded_at).toLocaleString()}</dd>
-            </dl>
-          </div>
-          
-          {/* Action buttons */}
-          <div className="flex justify-end space-x-4 border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={() => router.push(`/item/${item.id}`)}
-              className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400"
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+            
+            {/* Author */}
+            <div>
+              <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-1">
+                Author
+              </label>
+              <input
+                type="text"
+                id="author"
+                name="author"
+                value={item.author || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+            
+            {/* Source */}
+            <div>
+              <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
+                Source
+              </label>
+              <input
+                type="text"
+                id="source"
+                name="source"
+                value={item.source || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+            
+            {/* Original Link */}
+            <div>
+              <label htmlFor="original_link" className="block text-sm font-medium text-gray-700 mb-1">
+                Original Link
+              </label>
+              <input
+                type="url"
+                id="original_link"
+                name="original_link"
+                value={item.original_link || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+            
+            {/* Description */}
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows={4}
+                value={item.description || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              ></textarea>
+            </div>
+            
+            {/* Tags */}
+            <div>
+              <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+                Tags (comma-separated)
+              </label>
+              <input
+                type="text"
+                id="tags"
+                name="tags"
+                value={item.tags || ''}
+                onChange={handleChange}
+                placeholder="apple, macintosh, retro, vintage"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              />
+            </div>
+            
+            {/* Notes */}
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+                Notes
+              </label>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                value={item.notes || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"
+              ></textarea>
+            </div>
+            
+            {/* File info - read only */}
+            <div className="border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">File Information</h3>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <dt className="text-gray-500">File Size:</dt>
+                <dd className="text-gray-700">{formatFileSize(item.file_size)}</dd>
+                
+                <dt className="text-gray-500">OSS Key:</dt>
+                <dd className="break-all text-xs text-gray-600">{item.oss_key}</dd>
+                
+                <dt className="text-gray-500">Uploaded:</dt>
+                <dd className="text-gray-700">{new Date(item.uploaded_at).toLocaleString()}</dd>
+              </dl>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex justify-end space-x-4 border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                onClick={() => router.push(`/item/${item.id}`)}
+                className="px-6 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:bg-blue-300"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
